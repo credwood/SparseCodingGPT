@@ -33,14 +33,6 @@ def batch_up(iterable, batch_size=1):
     for ndx in range(0, l, batch_size):
         yield iterable[ndx:min(ndx + batch_size, l)]
 
-def get_num_blocks(model):
-    layer_names = [
-            n
-            for n, m in model.named_modules()
-            if (re.match(r"^(transformer|gpt_neox)\.(h|layers)\.\d+$", n))
-        ]
-    return len(layer_names)
-
 def example_dim_old(source, dim, words, word_to_sentence, sentences_str,
                     n=5, head=None, verbose = True, vis=False):
     my_df = []
@@ -60,7 +52,6 @@ def get_inputs(tokenizer, prompts, device="cuda"):
     token_lists = [tokenizer.encode(p) for p in prompts]
     lens = [len(t) for t in token_lists]
     maxlen = max(lens)
-    pad_lens = [maxlen-len for len in lens]
     if "[PAD]" in tokenizer.all_special_tokens:
         pad_id = tokenizer.all_special_ids[tokenizer.all_special_tokens.index("[PAD]")]
     elif "<pad>" in tokenizer.all_special_tokens:
@@ -69,7 +60,7 @@ def get_inputs(tokenizer, prompts, device="cuda"):
         pad_id = 0
     input_ids = [[pad_id] * (maxlen - len(t)) + t for t in token_lists]
     attention_mask = [[0] * (maxlen - len(t)) + [1] * len(t) for t in token_lists]
-    return pad_lens, dict(
+    return dict(
         input_ids=torch.tensor(input_ids).to(device),
         #    position_ids=torch.tensor(position_ids).to(device),
         attention_mask=torch.tensor(attention_mask).to(device),

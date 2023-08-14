@@ -26,9 +26,7 @@ from sklearn.datasets import load_digits
 
 # import sparsify
 import sparsify_PyTorch
-from core import get_num_blocks, batch_up, get_inputs
-
-
+from core import batch_up, get_inputs
 
 def main():
     save_directory = './dictionaries/'
@@ -71,19 +69,8 @@ def main():
     ActL1 = torch.zeros(args.PHI_NUM).to(device)
     signalEnergy = 0.
     noiseEnergy = 0.
-    snr = 1.
     X_set_temp = []
     frequency_temp = []
-
-    # the results in the experiment are based on data from ever other layer, so we give options
-    # for every other and every layer
-
-    num_layers = get_num_blocks(model)
-    if args.sparsify_every_layer:
-        layers = [num for num in range(num_layers)]
-    else:
-        layers = [num for num in range(num_layers) if not num%2]
-    
 
     #starting the dictionary training loop, the training loop is divided into the following 2 steps:
     #1. collect hidden states from transformer. Once we collect enough those hidden state vector, we jump to step 2.
@@ -102,9 +89,13 @@ def main():
                 np.save(filename_save, PHI.cpu().detach().numpy())
 
             batch = sentences_batched[batch_idx]
-            pad_lens, inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
+            inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
+            max_len = max(max([len(s) for s in inputs_no_pad_ids]))
+            pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
 
-            hidden_states = model(**inputs,output_hidden_states=True).hidden_states[-1] # includes initial embedding layer
+            hidden_states = model(**inputs,output_hidden_states=True) # includes initial embedding layer
+            layers = [num for num in range(len(hidden_states))]  if args.sparsify_every_layer else [num for num in range(len(hidden_states)) if not num%2]
+            
             for l in layers:
                 X=hidden_states[l].cpu().detach().numpy()
 

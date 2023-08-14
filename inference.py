@@ -66,7 +66,10 @@ def main():
             # This parts of the code looks complicated, but it basically keep track of a map between the word in each sentence 
             # to each of those sentences for convinience
             batch=sentences_batched[batch_idx]
-            pad_lens, inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
+            inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
+            max_len = max(max([len(s) for s in inputs_no_pad_ids]))
+            pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
+
             for tokens in inputs_no_pad_ids:
                 tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
                 sentences_str.append(tokenized)
@@ -81,7 +84,7 @@ def main():
                 
             # Collect hidden_states of a particular layers from the Transformer model. We also concadenate the hidden states of each 
             # sentences (a sequence of vectors) into a giant list (we use this later for sparse code inferences).
-            hidden_states = model(**inputs,output_hidden_states=True).hidden_states[-1] # includes initial embedding layer
+            hidden_states = model(**inputs,output_hidden_states=True) # includes initial embedding layer
             X=hidden_states[args.l].cpu().detach().numpy()
             for i in range(len(X)):
                 sentences_trunc = X[i][pad_lens[i]:]
