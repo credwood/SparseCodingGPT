@@ -2,7 +2,7 @@ import argparse
 
 import numpy as np
 import torch
-from transformers import AutoTokenizer, GPT2Model
+from transformers import GPT2Model, AutoTokenizer
 import tqdm
 
 from core import print_example_with_saliency
@@ -10,10 +10,9 @@ from core import print_example_with_saliency
 def main():
     model_version = args.model_version
 
-    # load model and tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_version)
-    tokenizer.a
+    # load model
     model = GPT2Model.from_pretrained(model_version)
+    tokenizer = AutoTokenizer.from_pretrained(model_version)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
 
@@ -25,7 +24,7 @@ def main():
     with open(folder + '/l_{}.txt'.format(args.l),'w') as the_file:
         for sparse_dim in tqdm(range(len(example_list))):
             examples = example_list[sparse_dim][:args.top_n_activation]
-            aa =  print_example_with_saliency(model,args.l,basis1,examples,sparse_dim,num_features =args.num_features,num_samples = args.num_samples,repeat = False,BATCH_SIZE_1=8,BATCH_SIZE_2=200,reg=args.reg,feature_selection = args.feature_selection)
+            aa =  print_example_with_saliency(model,tokenizer,args.l,basis1,examples,sparse_dim,num_features =args.num_features,num_samples = args.num_samples,repeat = False,BATCH_SIZE_1=8,BATCH_SIZE_2=200,reg=args.reg,feature_selection = args.feature_selection)
             the_file.write(aa+'\n')
 
 

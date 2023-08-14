@@ -30,7 +30,6 @@ def main():
 
     # load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_version)
-    tokenizer.a
     model = GPT2Model.from_pretrained(model_version)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
@@ -110,6 +109,7 @@ def main():
         # save the examples, which are in python dictionaries
         if not os.path.exists(args.outfile_dir):
             os.makedirs(args.outfile_dir)
+        
         np.save(args.outfile_dir + 'example_l_{}.npy'.format(args.l), good_examples_contents)
 
 

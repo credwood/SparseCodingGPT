@@ -20,11 +20,8 @@ import sparsify_PyTorch
 
 # import lime
 from lime.lime_text import LimeTextExplainer
-from transformers import AutoTokenizer
-
 
 result = string.punctuation
-tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
 def merge_two(list1, list2):
     ls = list1 + list2
@@ -148,7 +145,7 @@ def decode(token,ids):
 
     return sent
 
-def generate_salient_map(model,l,basis1,text_instance,word_index,sparse_dim,
+def generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,sparse_dim,
                          num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,
                          feature_selection='auto'):
 #     this function is modified from the LimeTextExplainer function from the lime repo:
@@ -214,7 +211,7 @@ def generate_salient_map(model,l,basis1,text_instance,word_index,sparse_dim,
     return salient_map
 
 
-def print_example_with_saliency(model,l,basis1,examples,sparse_dim,num_features =10,
+def print_example_with_saliency(model,tokenizer,l,basis1,examples,sparse_dim,num_features =10,
                                 num_samples = 1051,repeat = False,BATCH_SIZE_1=8,BATCH_SIZE_2=200,
                                 reg=0.3,feature_selection='auto'):
     # text_instance = """music in the uk and ireland stating that the single" welds a killer falsetto chorus to a latterday incarnation of the' wall of sound'"."""
@@ -228,7 +225,7 @@ def print_example_with_saliency(model,l,basis1,examples,sparse_dim,num_features 
         tokens = tokenizer.tokenize(text_instance)
 #         if len(tokens)>70:
 #             continue
-        salient_map = generate_salient_map(model,l,basis1,text_instance,word_index,sparse_dim,num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,feature_selection = feature_selection)
+        salient_map = generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,sparse_dim,num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,feature_selection = feature_selection)
         result = decode_color(tokens,salient_map,word_index)
         if sent_index not in all_sentences:
             all_sentences[sent_index] = [result]
@@ -244,4 +241,3 @@ def print_example_with_saliency(model,l,basis1,examples,sparse_dim,num_features 
         for block in ls:
             final_print = final_print + block + '<br />' + '<br />'
     return final_print
-

@@ -1,6 +1,7 @@
 """
 from: https://github.com/zeyuyun1/TransformerVis/blob/main/generating_training_data.py
 """
+import os
 from datasets import load_dataset,load_from_disk,concatenate_datasets,DatasetDict
 import numpy as np
 from transformers import AutoTokenizer
@@ -12,12 +13,15 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--gpu_id', type=int, default=0, help='gpu index')
 parser.add_argument('--max_seq_length', type=int, default=64, help='The length of each sentences in our dataset')
 parser.add_argument('--num_instances', type=int, default=300000, help='The number of sentences in our datasets.')
-parser.add_argument('--output_dir', type=str, default='./data/sentences.npy', help='the path for output')
+parser.add_argument('--output_dir', type=str, default='./data', help='the directory for output')
+parser.add_argument('--output_file', type=str, default='./data/sentences.npy', help='the path for output')
+parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
+
 args = parser.parse_args()
 random.seed(99)
 
 tokenizer = AutoTokenizer.from_pretrained(
-    'bert-base-uncased', use_fast=True
+    args.model_version, use_fast=True
 )
 dataset = load_dataset("wikitext",'wikitext-103-v1')
 articles = []
@@ -45,4 +49,7 @@ for batch in tokens_batch:
     if len(sentences)>args.num_instances:
         break
 
-np.save(args.output_dir, sentences) 
+if not os.path.exists(args.output_dir):
+   os.makedirs(args.output_dir)
+
+np.save(args.output_file, sentences) 

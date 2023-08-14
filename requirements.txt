@@ -5,7 +5,7 @@ numpy
 nltk
 lime
 IPython
-cupy
+cupy-cuda11x
 tqdm
-sklearn
+scikit-learn
 scipy

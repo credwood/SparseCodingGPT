@@ -2,7 +2,7 @@
 from: https://github.com/zeyuyun1/TransformerVis/blob/main/train.py
 
 """
-
+import os
 import argparse
 # import imageio
 import numpy as np
@@ -31,12 +31,12 @@ from core import get_num_blocks, batch_up, get_inputs
 
 
 def main():
+    save_directory = './dictionaries/'
     filename_save = '''./dictionaries/{}_{}_reg{}_d{}_epoch{}'''.format(args.model_version,args.name,args.reg,args.PHI_NUM,args.epoches)
     model_version = args.model_version
 
     # load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_version)
-    tokenizer.a
     model = GPT2Model.from_pretrained(model_version)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
@@ -71,6 +71,7 @@ def main():
     ActL1 = torch.zeros(args.PHI_NUM).to(device)
     signalEnergy = 0.
     noiseEnergy = 0.
+    snr = 1.
     X_set_temp = []
     frequency_temp = []
 
@@ -95,7 +96,11 @@ def main():
         for batch_idx in tqdm(range(len(sentences_batched)),'main loop'):
             if batch_idx%100==0:
                 #save your dictionary every now and then to avoid the unexpected crash during training loop:
+                if not os.path.exists(save_directory):
+                    os.makedirs(save_directory)
+
                 np.save(filename_save, PHI.cpu().detach().numpy())
+
             batch = sentences_batched[batch_idx]
             pad_lens, inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
 
@@ -141,6 +146,9 @@ def main():
                 X_set_temp=[]
                 frequency_temp=[]
 
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+
     np.save(filename_save, PHI.cpu().detach().numpy())
 
 
@@ -176,7 +184,7 @@ if __name__ == '__main__':
     parser.add_argument('--load', type=str, default=None, help=
                         'Instead of intialize an random dictionary for training. You can also enter a path here indicating the the path of the dictionary you want to start with. The file must be a .npy file')
     
-    parser.add_argument('--training_data', type=str, default='./data/sentences_short.npy', help=
+    parser.add_argument('--training_data', type=str, default='./data/sentences.npy', help=
                         'path of training data file. Again, must be a .npy file')
     
     parser.add_argument('--name', type=str, default='short', 
