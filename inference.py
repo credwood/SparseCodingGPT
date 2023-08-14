@@ -82,7 +82,7 @@ def main():
                 
             # Collect hidden_states of a particular layers from the Transformer model. We also concadenate the hidden states of each 
             # sentences (a sequence of vectors) into a giant list (we use this later for sparse code inferences).
-            hidden_states = model(**inputs,output_hidden_states=True).hidden_states[-1][1:]  # don't need initial embedding layer
+            hidden_states = model(**inputs,output_hidden_states=True).hidden_states[-1] # includes initial embedding layer
             X=hidden_states[args.l].cpu().detach().numpy()
             for i in range(len(X)):
                 sentences_trunc = X[i][pad_lens[i]:]
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_dir', type=str,default ='./data/sentences.npy', help=
                         'The path of data (a list of string, each string is a sentence of sequence of text with fixed length). The data is generated using data_generate.py. Since we dont need much data for dictionary learning (we can put all data in RAM at once), we save the data in npy file.')
     
-    parser.add_argument('--l', type=int, default=1, help='Which layer of the transformer model we explain. For example, for GPT2, we can pick an layers from 0-12')
+    parser.add_argument('--l', type=int, default=1, help='Which layer of the transformer model we explain. For example, for GPT2, we can pick an layers from 0-12, including the embedding layer')
     
     parser.add_argument('--batch_size_1', type=int, default=10, help=
                         'This is the batch size for inference of transformer model. Basically, how many seqeuence we shove into our model at once. This number shouldnt be big because inference of transformer model took lots of memory.')

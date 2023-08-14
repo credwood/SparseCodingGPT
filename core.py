@@ -153,7 +153,7 @@ def generate_salient_map(model,l,basis1,text_instance,word_index,sparse_dim,
                          feature_selection='auto'):
 #     this function is modified from the LimeTextExplainer function from the lime repo:
 #     https://github.com/marcotcr/lime/blob/a2c7a6fb70bce2e089cb146a31f483bf218875eb/lime/lime_text.py#L301
-#     I modified it to fit the huggingface style bert tokenizer.
+#     Zeyu Yun modified it to fit the huggingface style bert tokenizer.
 
     model_regressor=None
     explainer = LimeTextExplainer()
@@ -177,7 +177,7 @@ def generate_salient_map(model,l,basis1,text_instance,word_index,sparse_dim,
         inputs_batched = batch_up(inputs,BATCH_SIZE_1)
         for inputs in inputs_batched:
             inputs = torch.tensor(inputs).cuda()
-            hidden_states = model(inputs,output_hidden_states=True).hidden_states[-1][1:]  # don't need initial embedding layer
+            hidden_states = model(inputs,output_hidden_states=True).hidden_states[-1] # includes initial embedding layer
             X_att=hidden_states[l].cpu().detach().numpy()
 
             I_cuda_ls.extend(X_att[:,word_index,:])

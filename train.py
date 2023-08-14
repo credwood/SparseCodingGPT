@@ -99,7 +99,7 @@ def main():
             batch = sentences_batched[batch_idx]
             pad_lens, inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
 
-            hidden_states = model(**inputs,output_hidden_states=True).hidden_states[-1][1:] # don't need initial embedding layer
+            hidden_states = model(**inputs,output_hidden_states=True).hidden_states[-1] # includes initial embedding layer
             for l in layers:
                 X=hidden_states[l].cpu().detach().numpy()
 
@@ -153,6 +153,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_instances', type=int, default=298489, help=
                         'The number of sentences in our datasets. You can adjust this number to use a smaller datasets')
     
+    parser.add_argument('--sparsify_every_layer', type=bool, default=True, help='If true, trains every layer, if false trains even indexed layers.')    
+
     parser.add_argument('--epoches', type=int, default=2, help=
                         'numbers of epoch you want to train your dictionary')
     
