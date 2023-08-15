@@ -93,7 +93,7 @@ def main():
             max_len = max([len(s) for s in inputs_no_pad_ids])
             pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
 
-            hidden_states = model(**inputs,output_hidden_states=True) # includes initial embedding layer
+            hidden_states = model(**inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
             layers = [num for num in range(len(hidden_states))]  if args.sparsify_every_layer else [num for num in range(len(hidden_states)) if not num%2]
             
             for l in layers:

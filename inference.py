@@ -84,7 +84,7 @@ def main():
                 
             # Collect hidden_states of a particular layers from the Transformer model. We also concadenate the hidden states of each 
             # sentences (a sequence of vectors) into a giant list (we use this later for sparse code inferences).
-            hidden_states = model(**inputs,output_hidden_states=True) # includes initial embedding layer
+            hidden_states = model(**inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
             X=hidden_states[args.l].cpu().detach().numpy()
             for i in range(len(X)):
                 sentences_trunc = X[i][pad_lens[i]:]

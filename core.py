@@ -165,7 +165,7 @@ def generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,spars
         inputs_batched = batch_up(inputs,BATCH_SIZE_1)
         for inputs in inputs_batched:
             inputs = torch.tensor(inputs).cuda()
-            hidden_states = model(inputs,output_hidden_states=True).hidden_states[-1] # includes initial embedding layer
+            hidden_states = model(inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
             X_att=hidden_states[l].cpu().detach().numpy()
 
             I_cuda_ls.extend(X_att[:,word_index,:])
