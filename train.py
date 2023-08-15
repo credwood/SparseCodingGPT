@@ -90,7 +90,7 @@ def main():
 
             batch = sentences_batched[batch_idx]
             inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
-            max_len = max(max([len(s) for s in inputs_no_pad_ids]))
+            max_len = max([len(s) for s in inputs_no_pad_ids])
             pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
 
             hidden_states = model(**inputs,output_hidden_states=True) # includes initial embedding layer
