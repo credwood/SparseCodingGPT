@@ -9,6 +9,12 @@ You must specify which cupy version to install based on your your cuda version. 
 ```
 nvcc --version
 ```
+or 
+
+```
+nvidia-smi
+```
+
 Edit cupy in requirements.txt based on your system requirements and the available versions [here](https://pypi.org/project/cupy/).
 
 Create and activate a virtual environment before installing the requirements with the comand:
