@@ -2,7 +2,9 @@ import argparse
 
 import numpy as np
 import torch
-from transformers import GPT2Model, AutoTokenizer
+from transformers import AutoTokenizer
+from .modeling_gpt2 import GPT2Model
+
 import tqdm
 
 from core import print_example_with_saliency

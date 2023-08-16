@@ -66,6 +66,54 @@ def get_inputs(tokenizer, prompts, device="cuda"):
         attention_mask=torch.tensor(attention_mask).to(device),
     ), token_lists
 
+# --- Utility class for getting intermediate hidden states --- #
+class HookPoint(torch.nn.Module):
+    """
+    Credit to Neel Nanda: https://colab.research.google.com/drive/1F6_1_cWXE5M7WocUcpQWp3v8z4b1jL20#scrollTo=X4DuPaBkwa0M
+    
+    HookPoint is a helper class to get access to intermediate activations
+    It's a dummy nn.Module that is the identity function by default.
+    Used to wrap any intermediate activation in a HookPoint and get a convenient
+    way to add PyTorch hooks and cache or edit parameters in forward or backward pass
+    """
+    def __init__(self):
+        super().__init__()
+        self.fwd_hooks = []
+        self.bwd_hooks = []
+
+    def give_name(self, name):
+        self.name = name
+
+    def add_hook(self, hook, dir="fwd"):
+        # Hook format is fn(activation, hook_name)
+        # Must change into PyTorch hook format (this includes input and output,
+        # which are the same for a HookPoint)
+
+        def full_hook(self, module, module_input, module_output):
+            return hook(module_output, name=self.name)
+
+        if dir == 'fwd':
+            self.fwd_hooks.append(self.register_forward_hook(full_hook))
+        elif dir == "bwd":
+            self.bwd_hooks.append(self.register_backward_hook(full_hook))
+        else:
+            raise ValueError(f"Invalid direction {dir}")
+
+    def remove_hooks(self, dir="fwd"):
+        if dir == "fwd" or dir == "both":
+            for hook in self.fwd_hooks:
+                hook.remove()
+            self.fwd_hooks = []
+        if dir == "bwd" or dir == "both":
+            for hook in self.bwd_hooks:
+                hook.remove()
+            self.bwd_hooks = []
+        if dir not in ["fwd", "bwd", "both"]:
+            raise ValueError(f"Invalid direction {dir}")
+    def forward(self, x):
+        return x
+
+# ---- Utility methods for generating saliency maps --- #
 
 def cstr(s, color='black'):
     return "<text style=color:{}>{}</text>".format(color, s)

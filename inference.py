@@ -14,7 +14,9 @@ import torch
 from tqdm import tqdm
 import scipy as sp
 import sklearn
-from transformers import AutoTokenizer, GPT2Model
+from transformers import AutoTokenizer
+from .modeling_gpt2 import GPT2Model
+
 from datasets import load_dataset
 
 import random

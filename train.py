@@ -18,7 +18,9 @@ import torch
 from tqdm import tqdm
 import scipy as sp
 import sklearn
-from transformers import AutoTokenizer, GPT2Model
+from transformers import AutoTokenizer
+from .modeling_gpt2 import GPT2Model
+
 from datasets import load_dataset
 import nltk
 from nltk.probability import FreqDist
@@ -92,6 +94,11 @@ def main():
             inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
             max_len = max([len(s) for s in inputs_no_pad_ids])
             pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
+
+            if args.train_attention_dicts:
+                model.reset_hook_cache()
+                model.remove_all_hooks()
+                model.cache_all_hooks()
 
             hidden_states = model(**inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
             layers = [num for num in range(len(hidden_states))]  if args.sparsify_every_layer else [num for num in range(len(hidden_states)) if not num%2]
@@ -183,6 +190,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
     
+    parser.add_argument('--train_attention_dicts', type=bool, default=True, help='Train basis for hidden state directly after attention layer. Defaults to True.')    
+
     args = parser.parse_args()
 
     main()
