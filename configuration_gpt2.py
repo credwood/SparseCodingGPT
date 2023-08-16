@@ -13,14 +13,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# from: https://github.com/huggingface/transformers/blob/v4.31.0/src/transformers/models/gpt2/configuration_gpt2.py
 """ OpenAI GPT-2 configuration"""
 from collections import OrderedDict
 from typing import Any, List, Mapping, Optional
 
-from ... import PreTrainedTokenizer, TensorType, is_torch_available
-from ...configuration_utils import PretrainedConfig
-from ...onnx import OnnxConfigWithPast, PatchingSpec
-from ...utils import logging
+from transformers import PreTrainedTokenizer, TensorType, is_torch_available
+from transformers.configuration_utils import PretrainedConfig
+from transformers.onnx import OnnxConfigWithPast, PatchingSpec
+from transformers.utils import logging
 
 
 logger = logging.get_logger(__name__)
