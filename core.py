@@ -66,6 +66,85 @@ def get_inputs(tokenizer, prompts, device="cuda"):
         attention_mask=torch.tensor(attention_mask).to(device),
     ), token_lists
 
+
+# Utility functions for collecting hidden states and applying optimization methods --- #
+
+def collect_hidden_states(hidden_states, pad_lens, layers):
+    """
+    From a batch of hidden states, returns a list of vectors without padding dimensions
+
+    Args:
+        hidden_states: a batch of model hidden states, either be mid-layer or post layer
+        pas_lens: lengths of each sentences the batch
+
+    Returns:
+        List of hidden state vectors without padding dimensions
+    """
+    X_set_temp = []
+    for l in layers:
+        X=hidden_states[l].cpu().detach().numpy()
+        for i in range(len(X)):
+            sentences_trunc = X[i][pad_lens[i]:] # padding is on left
+            for s in range(len(sentences_trunc)):
+                X_set_temp.append(sentences_trunc[s])
+    
+    return X_set_temp
+
+def sparsify_batch(words_frequency_batched, hidden_batch, device, regularization, **kwargs):
+    """
+    Applies FISTA and basis update optimizations to a batch of hidden states
+    
+    Args:
+        words_frequency_batched: a list of work frequencies, repeated for each layer for convenience
+        hidden_batch: batch of hidden states
+        device: training device
+        kwargs: dictionary of optimization parameters, defined in the training loop
+    
+    returns: 
+        dictionary of updated optimization paramters
+    """
+    PHI_SIZE = kwargs["PHI_SIZE"]
+    PHI = kwargs["PHI"]
+    lambd = kwargs["lambd"]
+    ACT_HISTORY_LEN = kwargs["ACT_HISTORY_LEN"]
+    HessianDiag = kwargs["HessianDiag"]
+    ActL1 = kwargs["ActL1"]
+    signalEnergy = kwargs["signalEnergy"]
+    noiseEnergy = kwargs["noiseEnergy"]
+    snr = kwargs["snr"]
+
+    for i in tqdm(range(len(hidden_batch)),'update dictionary'):
+        batch = hidden_batch[i]
+        I_cuda = torch.from_numpy(np.stack(batch, axis=1)).to(device)
+        frequency = torch.tensor(words_frequency_batched[i]).float().to(device)
+        ahat, Res = sparsify_PyTorch.FISTA(I_cuda, PHI, regularization, 500)
+
+        #Statistics Collection
+        ActL1 = ActL1.mul((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + ahat.abs().mean(1)/ACT_HISTORY_LEN
+        HessianDiag = HessianDiag.mul((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + torch.pow(ahat,2).mean(1)/ACT_HISTORY_LEN
+
+        signalEnergy = signalEnergy*((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + torch.pow(I_cuda,2).sum()/ACT_HISTORY_LEN
+        noiseEnergy = noiseEnergy*((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + torch.pow(Res,2).sum()/ACT_HISTORY_LEN
+        snr = signalEnergy/noiseEnergy
+
+        #Dictionary Update
+        PHI = sparsify_PyTorch.quadraticBasisUpdate(PHI, Res*(1/frequency), ahat, 0.001, HessianDiag, 0.005)
+
+    return {
+        "PHI_SIZE": PHI_SIZE,
+        "PHI": PHI,
+        "lambd": lambd,
+        "ACT_HISTORY_LEN": ACT_HISTORY_LEN,
+        "HessianDiag": HessianDiag,
+        "ActL1": ActL1,
+        "signalEnergy": signalEnergy,
+        "noiseEnergy": noiseEnergy,
+    }
+
+
+
+    
+
 # --- Utility class for getting intermediate hidden states --- #
 class HookPoint(torch.nn.Module):
     """

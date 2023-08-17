@@ -19,7 +19,7 @@ from tqdm import tqdm
 import scipy as sp
 import sklearn
 from transformers import AutoTokenizer
-from .modeling_gpt2 import GPT2Model
+from modeling_gpt2 import GPT2Model
 
 from datasets import load_dataset
 import nltk
@@ -28,11 +28,13 @@ from sklearn.datasets import load_digits
 
 # import sparsify
 import sparsify_PyTorch
-from core import batch_up, get_inputs
+from core import batch_up, get_inputs, collect_hidden_states, sparsify_batch
 
 def main():
     save_directory = './dictionaries/'
     filename_save = '''./dictionaries/{}_{}_reg{}_d{}_epoch{}'''.format(args.model_version,args.name,args.reg,args.PHI_NUM,args.epoches)
+    attn_filename_save = '''./dictionaries/attn_{}_{}_reg{}_d{}_epoch{}'''.format(args.model_version,args.name,args.reg,args.PHI_NUM,args.epoches)
+
     model_version = args.model_version
 
     # load model and tokenizer
@@ -53,26 +55,44 @@ def main():
     data_analysis = nltk.FreqDist(words)
     for w in data_analysis:
         data_analysis[w] = np.sqrt(data_analysis[w])
-        
-    #initilize the dictionary matrix
-    PHI_SIZE = [args.HIDDEN_DIM, args.PHI_NUM]
-    PHI = torch.randn(PHI_SIZE).to(device)
-    PHI = PHI.div_(PHI.norm(2,0))
+
+    #initilize the dictionary matrix and some variable used in dictionary learning
+    PHI_ = torch.randn([args.HIDDEN_DIM, args.PHI_NUM]).to(device)
+    PHI_ = PHI_.div_(PHI_.norm(2,0))
+    hidden_dict = {
+        "PHI_SIZE": [args.HIDDEN_DIM, args.PHI_NUM],
+        "PHI": PHI_,
+        "lambd": 1.0,
+        "ACT_HISTORY_LEN": 300,
+        "HessianDiag": torch.zeros(args.PHI_NUM).to(device),
+        "ActL1": torch.zeros(args.PHI_NUM).to(device),
+        "signalEnergy": 0.,
+        "noiseEnergy": 0.,
+        "snr": 1.,
+    }
+
+    # variables for attention dictionary
+    PHI_ATTN_ = torch.randn([args.HIDDEN_DIM, args.PHI_NUM_ATTN]).to(device)
+    PHI_ATTN_ = PHI_ATTN_.div_(PHI_ATTN_.norm(2,0))
+    attn_hidden_dict = {
+        "PHI_SIZE": [args.HIDDEN_DIM, args.PHI_NUM_ATTN],
+        "PHI": PHI_ATTN_,
+        "lambd": 1.0,
+        "ACT_HISTORY_LEN": 300,
+        "HessianDiag": torch.zeros(args.PHI_NUM_ATTN).to(device),
+        "ActL1": torch.zeros(args.PHI_NUM_ATTN).to(device),
+        "signalEnergy": 0.,
+        "noiseEnergy": 0.,
+        "snr": 1.,
+    }
     
+    frequency_temp = []
+        
     #or you can also load a dictionary. You might want to do this if you are high way trough training a dictionary. And you want to keep training it.
     if args.load:
         print('load from: '+ args.load)
         PHI = torch.from_numpy(np.load(args.load)).to(device)
-
-    #intialize some variable used in dictionary learning
-    lambd = 1.0
-    ACT_HISTORY_LEN = 300
-    HessianDiag = torch.zeros(args.PHI_NUM).to(device)
-    ActL1 = torch.zeros(args.PHI_NUM).to(device)
-    signalEnergy = 0.
-    noiseEnergy = 0.
-    X_set_temp = []
-    frequency_temp = []
+        hidden_dict["PHI"] = PHI
 
     #starting the dictionary training loop, the training loop is divided into the following 2 steps:
     #1. collect hidden states from transformer. Once we collect enough those hidden state vector, we jump to step 2.
@@ -88,7 +108,11 @@ def main():
                 if not os.path.exists(save_directory):
                     os.makedirs(save_directory)
 
-                np.save(filename_save, PHI.cpu().detach().numpy())
+                np.save(filename_save, hidden_dict["PHI"].cpu().detach().numpy())
+
+                if args.train_attention_dicts:
+                    np.save(attn_filename_save, attn_hidden_dict["PHI"].cpu().detach().numpy())
+
 
             batch = sentences_batched[batch_idx]
             inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
@@ -103,14 +127,14 @@ def main():
             hidden_states = model(**inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
             layers = [num for num in range(len(hidden_states))]  if args.sparsify_every_layer else [num for num in range(len(hidden_states)) if not num%2]
             
-            for l in layers:
-                X=hidden_states[l].cpu().detach().numpy()
+            X_set_temp = collect_hidden_states(hidden_states, pad_lens, layers)
+            if args.train_attention_dicts:
+                attn_hidden_states = model.get_hook_cache()
+                attn_layers = [num for num in range(len(attn_hidden_states.values()))]
+                attn_hidden_states = list(attn_hidden_states.values())
+                attn_X_set_temp = collect_hidden_states(attn_hidden_states, pad_lens, attn_layers)
 
-                for i in range(len(X)):
-                    sentences_trunc = X[i][pad_lens[i]:] # padding is on left
-                    for s in range(len(sentences_trunc)):
-                        X_set_temp.append(sentences_trunc[s])
-                
+            for l in layers:
                 # update word/sentence tracker and frequency
                 for tokens in inputs_no_pad_ids:
                     tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
@@ -120,37 +144,27 @@ def main():
             if batch_idx%5==0 and batch_idx>0:
                 X_set_batched = list(batch_up(X_set_temp,args.batch_size_2))
                 words_frequency_batched = list(batch_up(frequency_temp,args.batch_size_2))
-               #print('start_training_dictionary:')
+                hidden_dict = sparsify_batch(words_frequency_batched, X_set_batched, device, args.reg, **hidden_dict)
+                X_set_temp = []
 
-                for i in tqdm(range(len(X_set_batched)),'update dictionary'):
-                    batch = X_set_batched[i]
-                    I_cuda = torch.from_numpy(np.stack(batch, axis=1)).to(device)
-                    frequency = torch.tensor(words_frequency_batched[i]).float().to(device)
-                    ahat, Res = sparsify_PyTorch.FISTA(I_cuda, PHI, args.reg, 500)
+                if args.train_attention_dicts:
+                    attn_X_set_batched = list(batch_up(attn_X_set_temp,args.batch_size_2))
+                    attn_hidden_dict = sparsify_batch(words_frequency_batched, attn_X_set_batched, device, args.reg, **attn_hidden_dict)
+                    attn_X_set_temp = []
 
-                    #Statistics Collection
-                    ActL1 = ActL1.mul((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + ahat.abs().mean(1)/ACT_HISTORY_LEN
-                    HessianDiag = HessianDiag.mul((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + torch.pow(ahat,2).mean(1)/ACT_HISTORY_LEN
-
-                    signalEnergy = signalEnergy*((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + torch.pow(I_cuda,2).sum()/ACT_HISTORY_LEN
-                    noiseEnergy = noiseEnergy*((ACT_HISTORY_LEN-1.0)/ACT_HISTORY_LEN) + torch.pow(Res,2).sum()/ACT_HISTORY_LEN
-                    snr = signalEnergy/noiseEnergy
-
-                    #Dictionary Update
-                    PHI = sparsify_PyTorch.quadraticBasisUpdate(PHI, Res*(1/frequency), ahat, 0.001, HessianDiag, 0.005)
-
-#               At this points, we finish exhuast all the hidden states we collect to update the dictionary. So we will dump all the hidden states vectors and jump back to step 1. We also print our some statistic for dictionary training so one can check how good their training are.
-                print("Total_step {a}, snr: {b}, act1 max: {c}, act1 min: {d}".format(a=epoch, b=snr,c = ActL1.max(),d=ActL1.min()))
-                X_set_temp=[]
                 frequency_temp=[]
+                
+#               At this points, we finish exhuast all the hidden states we collect to update the dictionary. So we will dump all the hidden states vectors and jump back to step 1. We also print our some statistic for dictionary training so one can check how good their training are.
+                print(f"Total_step {epoch}, snr: {hidden_dict['snr']}, act1 max: {hidden_dict['ActL1'].max()}, act1 min: {hidden_dict['ActL1'].min()}")
+                if args.train_attention_dicts:
+                    print(f"attn dict: Total_step {epoch}, snr: {attn_hidden_dict['snr']}, act1 max: {attn_hidden_dict['ActL1'].max()}, act1 min: {attn_hidden_dict['ActL1'].min()}")
 
     if not os.path.exists(save_directory):
         os.makedirs(save_directory)
 
-    np.save(filename_save, PHI.cpu().detach().numpy())
-
-
-
+    np.save(filename_save, hidden_dict["PHI"].cpu().detach().numpy())
+    if args.train_attention_dicts:
+        np.save(attn_filename_save, attn_hidden_dict["PHI"].cpu().detach().numpy())
 
 if __name__ == '__main__':
 
@@ -166,6 +180,9 @@ if __name__ == '__main__':
     
     parser.add_argument('--PHI_NUM', type=int, default=2000, help=
                         'The size of the dictionary. Also equivalent to the number of transformer factors.')
+    
+    parser.add_argument('--PHI_NUM_ATTN', type=int, default=2000, help=
+                        'The size of the attention dictionary. Also equivalent to the number of attention transformer factors.')
     
     parser.add_argument('--HIDDEN_DIM', type=int, default=768, help=
                         'The size of hidden state of your transformer model. The default the size of hidden states of gpt2')

@@ -47,8 +47,8 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
-from .configuration_gpt2 import GPT2Config
-from .core import HookPoint
+from configuration_gpt2 import GPT2Config
+from core import HookPoint
 
 
 logger = logging.get_logger(__name__)
@@ -769,6 +769,9 @@ class GPT2Model(GPT2PreTrainedModel):
 
     def reset_hook_cache(self):
         self.hook_cache = {}
+    
+    def get_hook_cache(self):
+        return self.hook_cache
     
     def get_input_embeddings(self):
         return self.wte
