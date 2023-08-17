@@ -696,8 +696,8 @@ class GPT2Model(GPT2PreTrainedModel):
         self.use_hook_cache = True
         self.hook_cache = {}
 
-        for name, module in self.named_parameters():
-            if type(module) == HookPoint:
+        for name, module in self.named_modules():
+            if type(module)==HookPoint:
                 module.give_name(name)
 
     @add_start_docstrings(PARALLELIZE_DOCSTRING)
@@ -748,7 +748,7 @@ class GPT2Model(GPT2PreTrainedModel):
         self.use_hook_cache = use_hook_cache
 
     def hook_points(self):
-        return [module for name, module in self.named_parameters() if 'hook' in name]
+        return [module for name, module in self.named_modules() if 'hook' in name]
 
     def remove_all_hooks(self):
         for hp in self.hook_points():
@@ -756,16 +756,15 @@ class GPT2Model(GPT2PreTrainedModel):
             hp.remove_hooks(dir="bwd")
     
     def cache_all_hooks(self, incl_bwd=False):
+        # Caches all activations wrapped in a HookPoint
         def save_hook(tensor, name):
             self.hook_cache[name] = tensor.detach()
-        
         def save_hook_back(tensor, name):
-            self.hook_cache[name+'_grad'] = tensor.detach()
-
+            self.hook_cache[name+'_grad'] = tensor[0].detach()
         for hp in self.hook_points():
-            hp.add_hooks(save_hook, "fwd")
+            hp.add_hook(save_hook, 'fwd')
             if incl_bwd:
-                hp.add_hooks(save_hook_back, "bwd")
+                hp.add_hook(save_hook_back, 'bwd')
 
     def reset_hook_cache(self):
         self.hook_cache = {}
