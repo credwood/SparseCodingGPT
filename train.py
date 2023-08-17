@@ -142,8 +142,8 @@ def main():
                 # names are formated: `h.{layer num}.hook_name`
                 attn_hidden_states = [(int(name.split(".")[1]), t) for name, t in attn_hidden_states.items()]
                 attn_hidden_states.sort()
-                attn_hidden_states = [t for _, t in attn_hidden_states]
                 attn_layers = [num for num, _ in attn_hidden_states]
+                attn_hidden_states = [t for _, t in attn_hidden_states]
                 attn_X_set_temp.extend(collect_hidden_states(attn_hidden_states, pad_lens, attn_layers))
 
             # TODO: refactor token frequency count
