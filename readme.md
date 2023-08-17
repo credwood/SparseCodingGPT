@@ -4,7 +4,7 @@ This is a reimplementation of [this](https://github.com/zeyuyun1/TransformerVis/
 
 ## Updates
 
-8/17: training for mid-layer resiudal stream (post attention and attention layer norm, just before MLP layer) added. module unstable; testing and debugging is in progress.
+8/17: Dictionary training for mid-layer resiudal stream (post attention) added. Module unstable; testing still in progress.
 
  ## Set up
 

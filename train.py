@@ -130,8 +130,14 @@ def main():
             X_set_temp = collect_hidden_states(hidden_states, pad_lens, layers)
             if args.train_attention_dicts:
                 attn_hidden_states = model.get_hook_cache()
-                attn_layers = [num for num in range(len(attn_hidden_states.values()))]
-                attn_hidden_states = list(attn_hidden_states.values())
+
+                # we don't assume that the dictionary will maintain order
+                # instead we take the layer number in the parameter name 
+                # names are formated: `h.{layer num}.hook_name`
+                attn_hidden_states = [(int(name.split(".")[1]), t) for name, t in attn_hidden_states.items()]
+                attn_hidden_states.sort()
+                attn_hidden_states = [t for _, t in attn_hidden_states]
+                attn_layers = [num for num, _ in attn_hidden_states]
                 attn_X_set_temp = collect_hidden_states(attn_hidden_states, pad_lens, attn_layers)
 
             for l in layers:
