@@ -2,6 +2,10 @@
 
 This is a reimplementation of [this](https://github.com/zeyuyun1/TransformerVis/blob/main/readme.md) project based on the paper [Transformer visualization via dictionary learning: contextualized embedding as a linear superposition of transformer factors](https://arxiv.org/pdf/2103.15949.pdf) by by Zeyu Yun*, Yubei Chen*, Bruno A Olshausen, and Yann LeCun.
 
+# Updates
+
+8/17: training for mid-layer resiudal stream (post attention and attention layer norm, just before MLP layer) added. module unstable; testing and debugging is in progress.
+
  # Set up
 
 You must specify which cupy version to install based on your your cuda version. To get this information, run: 
@@ -22,6 +26,8 @@ Create and activate a virtual environment before installing the requirements wit
 ```
 pip install -r requirements.tx
 ```
+
+
 
  # Training and Inference
  
