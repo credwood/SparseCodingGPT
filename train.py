@@ -87,6 +87,9 @@ def main():
     }
     
     frequency_temp = []
+    attn_frequency_temp = []
+    X_set_temp = []
+    attn_X_set_temp = []
         
     #or you can also load a dictionary. You might want to do this if you are high way trough training a dictionary. And you want to keep training it.
     if args.load:
@@ -125,9 +128,12 @@ def main():
                 model.cache_all_hooks()
 
             hidden_states = model(**inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
+
+            # TODO: layers should be generated based on layer numbers in parameter names
+            # to provide more flexibility
             layers = [num for num in range(len(hidden_states))]  if args.sparsify_every_layer else [num for num in range(len(hidden_states)) if not num%2]
             
-            X_set_temp = collect_hidden_states(hidden_states, pad_lens, layers)
+            X_set_temp.extend(collect_hidden_states(hidden_states, pad_lens, layers))
             if args.train_attention_dicts:
                 attn_hidden_states = model.get_hook_cache()
 
@@ -138,27 +144,39 @@ def main():
                 attn_hidden_states.sort()
                 attn_hidden_states = [t for _, t in attn_hidden_states]
                 attn_layers = [num for num, _ in attn_hidden_states]
-                attn_X_set_temp = collect_hidden_states(attn_hidden_states, pad_lens, attn_layers)
+                attn_X_set_temp.extend(collect_hidden_states(attn_hidden_states, pad_lens, attn_layers))
 
+            # TODO: refactor token frequency count
+            # Keeping style of original code for now, but duplication
+            # needs to be dealt with
+            
             for l in layers:
                 # update word/sentence tracker and frequency
                 for tokens in inputs_no_pad_ids:
                     tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
                     frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
-                
+            
+            if args.train_attention_dict:
+                for l in attn_layers:
+                    # update word/sentence tracker and frequency
+                    for tokens in inputs_no_pad_ids:
+                        tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
+                        attn_frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
+            
             #Step 2: once we collece enough hidden states, we train the dictionary.
             if batch_idx%5==0 and batch_idx>0:
                 X_set_batched = list(batch_up(X_set_temp,args.batch_size_2))
                 words_frequency_batched = list(batch_up(frequency_temp,args.batch_size_2))
                 hidden_dict = sparsify_batch(words_frequency_batched, X_set_batched, device, args.reg, **hidden_dict)
                 X_set_temp = []
+                frequency_temp = []
 
                 if args.train_attention_dicts:
                     attn_X_set_batched = list(batch_up(attn_X_set_temp,args.batch_size_2))
-                    attn_hidden_dict = sparsify_batch(words_frequency_batched, attn_X_set_batched, device, args.reg, **attn_hidden_dict)
+                    attn_words_frequency_batched = list(batch_up(attn_frequency_temp,args.batch_size_2))
+                    attn_hidden_dict = sparsify_batch(attn_words_frequency_batched, attn_X_set_batched, device, args.reg, **attn_hidden_dict)
                     attn_X_set_temp = []
-
-                frequency_temp=[]
+                    attn_frequency_temp = []
                 
 #               At this points, we finish exhuast all the hidden states we collect to update the dictionary. So we will dump all the hidden states vectors and jump back to step 1. We also print our some statistic for dictionary training so one can check how good their training are.
                 print(f"Total_step {epoch}, snr: {hidden_dict['snr']}, act1 max: {hidden_dict['ActL1'].max()}, act1 min: {hidden_dict['ActL1'].min()}")
