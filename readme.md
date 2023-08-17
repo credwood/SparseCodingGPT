@@ -4,7 +4,7 @@ This is a reimplementation of [this](https://github.com/zeyuyun1/TransformerVis/
 
 ## Updates
 
-8/17: Dictionary training for mid-layer resiudal stream (post attention) added. Module unstable; testing still in progress.
+8/17: Dictionary training for mid-layer resiudal stream (post attention) added. Module unstable; testing ongoing. INference for attention dictionary not yet implemented.
 
  ## Set up
 

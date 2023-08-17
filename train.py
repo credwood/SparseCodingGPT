@@ -113,7 +113,7 @@ def main():
 
                 np.save(filename_save, hidden_dict["PHI"].cpu().detach().numpy())
 
-                if args.train_attention_dicts:
+                if args.train_attention_dict:
                     np.save(attn_filename_save, attn_hidden_dict["PHI"].cpu().detach().numpy())
 
 
@@ -122,7 +122,7 @@ def main():
             max_len = max([len(s) for s in inputs_no_pad_ids])
             pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
 
-            if args.train_attention_dicts:
+            if args.train_attention_dict:
                 model.reset_hook_cache()
                 model.remove_all_hooks()
                 model.cache_all_hooks()
@@ -134,7 +134,7 @@ def main():
             layers = [num for num in range(len(hidden_states))]  if args.sparsify_every_layer else [num for num in range(len(hidden_states)) if not num%2]
             
             X_set_temp.extend(collect_hidden_states(hidden_states, pad_lens, layers))
-            if args.train_attention_dicts:
+            if args.train_attention_dict:
                 attn_hidden_states = model.get_hook_cache()
 
                 # we don't assume that the dictionary will maintain order
@@ -171,7 +171,7 @@ def main():
                 X_set_temp = []
                 frequency_temp = []
 
-                if args.train_attention_dicts:
+                if args.train_attention_dict:
                     attn_X_set_batched = list(batch_up(attn_X_set_temp,args.batch_size_2))
                     attn_words_frequency_batched = list(batch_up(attn_frequency_temp,args.batch_size_2))
                     attn_hidden_dict = sparsify_batch(attn_words_frequency_batched, attn_X_set_batched, device, args.reg, **attn_hidden_dict)
@@ -180,14 +180,14 @@ def main():
                 
 #               At this points, we finish exhuast all the hidden states we collect to update the dictionary. So we will dump all the hidden states vectors and jump back to step 1. We also print our some statistic for dictionary training so one can check how good their training are.
                 print(f"Total_step {epoch}, snr: {hidden_dict['snr']}, act1 max: {hidden_dict['ActL1'].max()}, act1 min: {hidden_dict['ActL1'].min()}")
-                if args.train_attention_dicts:
+                if args.train_attention_dict:
                     print(f"attn dict: Total_step {epoch}, snr: {attn_hidden_dict['snr']}, act1 max: {attn_hidden_dict['ActL1'].max()}, act1 min: {attn_hidden_dict['ActL1'].min()}")
 
     if not os.path.exists(save_directory):
         os.makedirs(save_directory)
 
     np.save(filename_save, hidden_dict["PHI"].cpu().detach().numpy())
-    if args.train_attention_dicts:
+    if args.train_attention_dict:
         np.save(attn_filename_save, attn_hidden_dict["PHI"].cpu().detach().numpy())
 
 if __name__ == '__main__':
@@ -231,7 +231,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
     
-    parser.add_argument('--train_attention_dicts', type=bool, default=True, help='Train basis for hidden state directly after attention layer. Defaults to True.')    
+    parser.add_argument('--train_attention_dict', type=bool, default=True, help='Train basis for hidden state directly after attention layer. Defaults to True.')    
 
     args = parser.parse_args()
 

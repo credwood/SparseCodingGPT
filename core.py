@@ -139,6 +139,7 @@ def sparsify_batch(words_frequency_batched, hidden_batch, device, regularization
         "ActL1": ActL1,
         "signalEnergy": signalEnergy,
         "noiseEnergy": noiseEnergy,
+        "snr": snr,
     }
 
 
