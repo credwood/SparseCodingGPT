@@ -400,7 +400,9 @@ class GPT2Block(nn.Module):
             use_cache=use_cache,
             output_attentions=output_attentions,
         )
-        attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
+        
+        # hooking output of attention for dictionary learning
+        attn_output = self.hook_mid_residual(attn_outputs[0])  # output_attn: a, present, (attentions)
         outputs = attn_outputs[1:]
         # residual connection
         hidden_states = attn_output + residual
@@ -428,7 +430,7 @@ class GPT2Block(nn.Module):
             outputs = outputs + cross_attn_outputs[2:]  # add cross attentions if we output attention weights
 
         residual = hidden_states
-        hidden_states = self.hook_mid_residual(self.ln_2(hidden_states)) # collecting hidden state just before MLP
+        hidden_states = self.ln_2(hidden_states)
         feed_forward_hidden_states = self.mlp(hidden_states)
         # residual connection
         hidden_states = residual + feed_forward_hidden_states
