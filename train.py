@@ -134,9 +134,9 @@ def main():
                 # update word/sentence tracker and frequency
                 for tokens in inputs_no_pad_ids:
                     tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
-                    if len(layers) < l:
+                    if l < len(layers):
                         frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
-                    if args.train_attention_dict and len(attn_layers) < l:
+                    if args.train_attention_dict and l < len(attn_layers):
                         attn_frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
                 
             #Step 2: once we collece enough hidden states, we train the dictionary.
