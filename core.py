@@ -90,6 +90,25 @@ def collect_hidden_states(hidden_states, pad_lens, layers):
     
     return X_set_temp
 
+def FISTA_optim_dict(HIDDEN_DIM, PHI_NUM, device):
+    PHI_ = torch.randn([HIDDEN_DIM, PHI_NUM]).to(device)
+    PHI_ = PHI_.div_(PHI_.norm(2,0))
+
+    hidden_dict = {
+        "PHI_SIZE": [HIDDEN_DIM, PHI_NUM],
+        "PHI": PHI_,
+        "lambd": 1.0,
+        "ACT_HISTORY_LEN": 300,
+        "HessianDiag": torch.zeros(PHI_NUM).to(device),
+        "ActL1": torch.zeros(PHI_NUM).to(device),
+        "signalEnergy": 0.,
+        "noiseEnergy": 0.,
+        "snr": 1.,
+    }
+
+    return hidden_dict
+
+
 def sparsify_batch(words_frequency_batched, hidden_batch, device, regularization, **kwargs):
     """
     Applies FISTA and basis update optimizations to a batch of hidden states

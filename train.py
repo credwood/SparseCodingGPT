@@ -28,7 +28,7 @@ from sklearn.datasets import load_digits
 
 # import sparsify
 import sparsify_PyTorch
-from core import batch_up, get_inputs, collect_hidden_states, sparsify_batch
+from core import batch_up, get_inputs, collect_hidden_states, sparsify_batch, FISTA_optim_dict
 
 def main():
     save_directory = './dictionaries/'
@@ -57,34 +57,11 @@ def main():
         data_analysis[w] = np.sqrt(data_analysis[w])
 
     #initilize the dictionary matrix and some variable used in dictionary learning
-    PHI_ = torch.randn([args.HIDDEN_DIM, args.PHI_NUM]).to(device)
-    PHI_ = PHI_.div_(PHI_.norm(2,0))
-    hidden_dict = {
-        "PHI_SIZE": [args.HIDDEN_DIM, args.PHI_NUM],
-        "PHI": PHI_,
-        "lambd": 1.0,
-        "ACT_HISTORY_LEN": 300,
-        "HessianDiag": torch.zeros(args.PHI_NUM).to(device),
-        "ActL1": torch.zeros(args.PHI_NUM).to(device),
-        "signalEnergy": 0.,
-        "noiseEnergy": 0.,
-        "snr": 1.,
-    }
+    
+    hidden_dict = FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM, device)
 
     # variables for attention dictionary
-    PHI_ATTN_ = torch.randn([args.HIDDEN_DIM, args.PHI_NUM_ATTN]).to(device)
-    PHI_ATTN_ = PHI_ATTN_.div_(PHI_ATTN_.norm(2,0))
-    attn_hidden_dict = {
-        "PHI_SIZE": [args.HIDDEN_DIM, args.PHI_NUM_ATTN],
-        "PHI": PHI_ATTN_,
-        "lambd": 1.0,
-        "ACT_HISTORY_LEN": 300,
-        "HessianDiag": torch.zeros(args.PHI_NUM_ATTN).to(device),
-        "ActL1": torch.zeros(args.PHI_NUM_ATTN).to(device),
-        "signalEnergy": 0.,
-        "noiseEnergy": 0.,
-        "snr": 1.,
-    }
+    attn_hidden_dict = FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM_ATTN, device)
     
     frequency_temp = []
     attn_frequency_temp = []
@@ -96,6 +73,10 @@ def main():
         print('load from: '+ args.load)
         PHI = torch.from_numpy(np.load(args.load)).to(device)
         hidden_dict["PHI"] = PHI
+    if args.load_attn:
+        print('load from: '+ args.load_attn)
+        PHI = torch.from_numpy(np.load(args.load_attn)).to(device)
+        attn_hidden_dict["PHI"] = PHI
 
     #starting the dictionary training loop, the training loop is divided into the following 2 steps:
     #1. collect hidden states from transformer. Once we collect enough those hidden state vector, we jump to step 2.
@@ -146,23 +127,18 @@ def main():
                 attn_hidden_states = [t for _, t in attn_hidden_states]
                 attn_X_set_temp.extend(collect_hidden_states(attn_hidden_states, pad_lens, attn_layers))
 
-            # TODO: refactor token frequency count
-            # Keeping style of original code for now, but duplication
-            # needs to be dealt with
+            # TODO: refactor token frequency count strategy
             
-            for l in layers:
+            freq_layer = max(len(layers), len(attn_layers))
+            for l in range(freq_layer):
                 # update word/sentence tracker and frequency
                 for tokens in inputs_no_pad_ids:
                     tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
-                    frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
-            
-            if args.train_attention_dict:
-                for l in attn_layers:
-                    # update word/sentence tracker and frequency
-                    for tokens in inputs_no_pad_ids:
-                        tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
+                    if len(layers) < l:
+                        frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
+                    if args.train_attention_dict and len(attn_layers) < l:
                         attn_frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
-            
+                
             #Step 2: once we collece enough hidden states, we train the dictionary.
             if batch_idx%5==0 and batch_idx>0:
                 X_set_batched = list(batch_up(X_set_temp,args.batch_size_2))
@@ -222,6 +198,9 @@ if __name__ == '__main__':
     
     parser.add_argument('--load', type=str, default=None, help=
                         'Instead of intialize an random dictionary for training. You can also enter a path here indicating the the path of the dictionary you want to start with. The file must be a .npy file')
+    
+    parser.add_argument('--load_attn', type=str, default=None, help=
+                        'Instead of intialize an random dictionary for training for attention. You can also enter a path here indicating the the path of the attention dictionary you want to start with. The file must be a .npy file')
     
     parser.add_argument('--training_data', type=str, default='./data/sentences.npy', help=
                         'path of training data file. Again, must be a .npy file')
