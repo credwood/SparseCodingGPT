@@ -110,7 +110,7 @@ def main():
 
             # TODO: refactor this token frequency count strategy!
             
-            freq_layer = max([l in layers.values()])
+            freq_layer = max([l for l in layers.values()])
             for l in range(freq_layer):
                 # update word/sentence tracker and frequency
                 for hook in layers.keys():

@@ -74,8 +74,8 @@ def collect_hidden_states(hidden_states, pad_lens):
     From a batch of hidden states, returns a list of vectors without padding dimensions
 
     Args:
-        hidden_states: a batch of model hidden states, either be mid-layer or post layer
-        pas_lens: lengths of each sentences the batch
+        hidden_states: a batch of model hidden states
+        pad_lens: lengths of each sentences the batch
 
     Returns:
         List of hidden state vectors without padding dimensions
