@@ -88,8 +88,7 @@ def main():
             # Note that if a tokenizer adds a bos token by default
             # this code assumes args.
             _, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
-            max_len = max([len(s) for s in inputs_no_pad_ids])
-            pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
+            pad_lens = [len(s) for s in inputs_no_pad_ids]
 
             _, hidden_states = model.run_with_cache(batch, prepend_bos=args.prepend_bos)
             layers = {}
@@ -105,20 +104,19 @@ def main():
                     to_sparsify = args.sparsify_specific_layers
                     hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() if (int(name.split(".")[1]) in to_sparsify[hook] and hook == name.split(".")[-1])]
                 hook_hidden_states.sort()
-                layers_hook = [num for num, _ in hook_hidden_states]
-                layers[hook] = layers_hook
+                layers[hook] = len([num for num, _ in hook_hidden_states])
                 hook_hidden_states = [t for _, t in hook_hidden_states]
-                X_set_temp[hook].extend(collect_hidden_states(hook_hidden_states, pad_lens, layers_hook))
+                X_set_temp[hook].extend(collect_hidden_states(hook_hidden_states, pad_lens))
 
             # TODO: refactor this token frequency count strategy!
             
-            freq_layer = max([len(l) for l in layers.values()])
+            freq_layer = max([l in layers.values()])
             for l in range(freq_layer):
                 # update word/sentence tracker and frequency
-                for tokens in inputs_no_pad_ids:
-                    tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
-                    for hook in layers.keys():
-                        if l < len(layers[hook]):
+                for hook in layers.keys():
+                    if l < layers[hook]:
+                        for tokens in inputs_no_pad_ids:
+                            tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
                             frequency_temp[hook].extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
                     
             #Step 2: once we collece enough hidden states, we train the dictionary.

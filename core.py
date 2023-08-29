@@ -69,7 +69,7 @@ def get_inputs(tokenizer, prompts, device="cuda"):
 
 # Utility functions for collecting hidden states and applying optimization methods --- #
 
-def collect_hidden_states(hidden_states, pad_lens, layers):
+def collect_hidden_states(hidden_states, pad_lens):
     """
     From a batch of hidden states, returns a list of vectors without padding dimensions
 
@@ -81,8 +81,8 @@ def collect_hidden_states(hidden_states, pad_lens, layers):
         List of hidden state vectors without padding dimensions
     """
     X_set_temp = []
-    for l in layers:
-        X=hidden_states[l].cpu().detach().numpy()
+    for hidden_state in range(hidden_states):
+        X=hidden_state.cpu().detach().numpy()
         for i in range(len(X)):
             sentences_trunc = X[i][:pad_lens[i]] # padding assumed to be on right
             for s in range(len(sentences_trunc)):
