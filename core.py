@@ -84,7 +84,7 @@ def collect_hidden_states(hidden_states, pad_lens, layers):
     for l in layers:
         X=hidden_states[l].cpu().detach().numpy()
         for i in range(len(X)):
-            sentences_trunc = X[i][pad_lens[i]:] # padding is on left
+            sentences_trunc = X[i][:pad_lens[i]] # padding assumed to be on right
             for s in range(len(sentences_trunc)):
                 X_set_temp.append(sentences_trunc[s])
     
@@ -161,51 +161,6 @@ def sparsify_batch(words_frequency_batched, hidden_batch, device, regularization
         "snr": snr,
     }
 
-
-
-    
-
-# --- Utility class for getting intermediate hidden states --- #
-class HookPoint(torch.nn.Module):
-    # credit to Neel Nanda: https://colab.research.google.com/drive/1F6_1_cWXE5M7WocUcpQWp3v8z4b1jL20#scrollTo=zCw06jhGTEsH
-    def __init__(self):
-        super().__init__()
-        self.fwd_hooks = []
-        self.bwd_hooks = []
-    
-    def give_name(self, name):
-        # Called by the model at initialisation
-        self.name = name
-    
-    def add_hook(self, hook, dir='fwd'):
-        # Hook format is fn(activation, hook_name)
-        # Change it into PyTorch hook format (this includes input and output, 
-        # which are the same for a HookPoint)
-        def full_hook(module, module_input, module_output):
-            return hook(module_output, name=self.name)
-        if dir=='fwd':
-            handle = self.register_forward_hook(full_hook)
-            self.fwd_hooks.append(handle)
-        elif dir=='bwd':
-            handle = self.register_backward_hook(full_hook)
-            self.bwd_hooks.append(handle)
-        else:
-            raise ValueError(f"Invalid direction {dir}")
-    
-    def remove_hooks(self, dir='fwd'):
-        if (dir=='fwd') or (dir=='both'):
-            for hook in self.fwd_hooks:
-                hook.remove()
-            self.fwd_hooks = []
-        if (dir=='bwd') or (dir=='both'):
-            for hook in self.bwd_hooks:
-                hook.remove()
-            self.bwd_hooks = []
-        if dir not in ['fwd', 'bwd', 'both']:
-            raise ValueError(f"Invalid direction {dir}")
-    
-    def forward(self, x):
-        return x
 
 # ---- Utility methods for generating saliency maps --- #
 

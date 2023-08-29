@@ -1,25 +1,20 @@
 """
-from: https://github.com/zeyuyun1/TransformerVis/blob/main/train.py
-
+dictionary training
+adapted from: https://github.com/zeyuyun1/TransformerVis/blob/main/train.py
 """
 import os
 import argparse
 # import imageio
 import numpy as np
 import numpy.linalg as la
-import scipy.io
-import sys
-"""
-dictionary training
-adapted from: https://github.com/zeyuyun1/TransformerVis/blob/main/train.py
-"""
+
 import logging
 import torch
 from tqdm import tqdm
 import scipy as sp
 import sklearn
 from transformers import AutoTokenizer
-from modeling_gpt2 import GPT2Model
+from transformer_lens import HookedTransformer
 
 from datasets import load_dataset
 import nltk
@@ -31,15 +26,15 @@ import sparsify_PyTorch
 from core import batch_up, get_inputs, collect_hidden_states, sparsify_batch, FISTA_optim_dict
 
 def main():
+    logging.basicConfig(filename=args.training_log, encoding='utf-8', level=logging.DEBUG)
+    assert len(args.hooks) == len(list(args.PHI_NUM_DICT.keys())), "Number of phi numbers and hooks specified must match."
     save_directory = './dictionaries/'
-    filename_save = '''./dictionaries/{}_{}_reg{}_d{}_epoch{}'''.format(args.model_version,args.name,args.reg,args.PHI_NUM,args.epoches)
-    attn_filename_save = '''./dictionaries/attn_{}_{}_reg{}_d{}_epoch{}'''.format(args.model_version,args.name,args.reg,args.PHI_NUM,args.epoches)
-
+    training_dicts = {hook: [f'./dictionaries/{args.model_version}_{args.name}_reg{args.reg}_d{args.PHI_NUM_DICT[hook]}_epoch{args.epoches}'] for hook in args.hook}
     model_version = args.model_version
 
     # load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_version)
-    model = GPT2Model.from_pretrained(model_version)
+    model = HookedTransformer.from_pretrained(model_version)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
 
@@ -56,27 +51,20 @@ def main():
     for w in data_analysis:
         data_analysis[w] = np.sqrt(data_analysis[w])
 
-    #initilize the dictionary matrix and some variable used in dictionary learning
+    #initilize the training dictionaries and some variable used in dictionary learning for eahc hook type
+    for hook in training_dicts.keys():
+        training_dicts[hook].append(FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM_DICT[hook], device))
     
-    hidden_dict = FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM, device)
-
-    # variables for attention dictionary
-    attn_hidden_dict = FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM_ATTN, device)
-    
-    frequency_temp = []
-    attn_frequency_temp = []
-    X_set_temp = []
-    attn_X_set_temp = []
+    # dicts for activation collection and batch word frequency data
+    frequency_temp = {hook: [] for hook in args.hook}
+    X_set_temp = {hook:[] for hook in args.hook}
         
-    #or you can also load a dictionary. You might want to do this if you are high way trough training a dictionary. And you want to keep training it.
+    #or you can load a dictionary. You might want to do this if you are high way trough training a dictionary. And you want to keep training it.
     if args.load:
-        print('load from: '+ args.load)
-        PHI = torch.from_numpy(np.load(args.load)).to(device)
-        hidden_dict["PHI"] = PHI
-    if args.load_attn:
-        print('load from: '+ args.load_attn)
-        PHI = torch.from_numpy(np.load(args.load_attn)).to(device)
-        attn_hidden_dict["PHI"] = PHI
+        for hook, path in args.load.items():
+            print(f'loading {hook} from: {path}')
+            PHI = torch.from_numpy(np.load(path)).to(device)
+            training_dicts[hook]["PHI"] = PHI
 
     #starting the dictionary training loop, the training loop is divided into the following 2 steps:
     #1. collect hidden states from transformer. Once we collect enough those hidden state vector, we jump to step 2.
@@ -92,79 +80,63 @@ def main():
                 if not os.path.exists(save_directory):
                     os.makedirs(save_directory)
 
-                np.save(filename_save, hidden_dict["PHI"].cpu().detach().numpy())
-
-                if args.train_attention_dict:
-                    np.save(attn_filename_save, attn_hidden_dict["PHI"].cpu().detach().numpy())
-
+                for lst in training_dicts.values():
+                    file_name, hidden_dict = lst
+                    np.save(file_name, hidden_dict["PHI"].cpu().detach().numpy())
 
             batch = sentences_batched[batch_idx]
-            inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
+            _, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
             max_len = max([len(s) for s in inputs_no_pad_ids])
             pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
 
-            if args.train_attention_dict:
-                model.reset_hook_cache()
-                model.remove_all_hooks()
-                model.cache_all_hooks()
-
-            hidden_states = model(**inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
-
-            # TODO: layers should be generated based on layer numbers in parameter names
-            # to provide more flexibility
-            layers = [num for num in range(len(hidden_states))]  if args.sparsify_every_layer else [num for num in range(len(hidden_states)) if not num%2]
-            
-            X_set_temp.extend(collect_hidden_states(hidden_states, pad_lens, layers))
-            if args.train_attention_dict:
-                attn_hidden_states = model.get_hook_cache()
-
-                # we don't assume that the dictionary will maintain order
+            _, hidden_states = model.run_with_cache(batch, prepend_bos=args.prepend_bos)
+            layers = {}
+            for hook in X_set_temp.keys():
+                
+                # this looks silly but we won't assume that the dictionary will maintain order
                 # instead we take the layer number in the parameter name 
-                # names are formated: `h.{layer num}.hook_name`
-                attn_hidden_states = [(int(name.split(".")[1]), t) for name, t in attn_hidden_states.items()]
-                attn_hidden_states.sort()
-                attn_layers = [num for num, _ in attn_hidden_states]
-                attn_hidden_states = [t for _, t in attn_hidden_states]
-                attn_X_set_temp.extend(collect_hidden_states(attn_hidden_states, pad_lens, attn_layers))
+                # names are formated: `blocks.{layer num}.{optional layernorm}.{hook_name}`
+                if args.sparsify_every_layer:
+                    hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() if hook == name.split(".")[-1]]
+                else:
+                    assert args.sparsify_specific_layers is not None, "If not sparsifying eveyr layer, must provide dictionary with layer number for each hook"
+                    to_sparsify = args.sparsify_specific_layers
+                    hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() if (int(name.split(".")[1]) in to_sparsify[hook] and hook == name.split(".")[-1])]
+                hook_hidden_states.sort()
+                layers = [num for num, _ in hook_hidden_states]
+                layers[hook] = layers
+                hook_hidden_states = [t for _, t in hook_hidden_states]
+                X_set_temp[hook].extend(collect_hidden_states(hidden_states, pad_lens, layers))
 
-            # TODO: refactor token frequency count strategy
+            # TODO: refactor this token frequency count strategy!
             
-            freq_layer = max(len(layers), len(attn_layers))
+            freq_layer = max([len(l) for l in layers.values()])
             for l in range(freq_layer):
                 # update word/sentence tracker and frequency
                 for tokens in inputs_no_pad_ids:
                     tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
-                    if l < len(layers):
-                        frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
-                    if args.train_attention_dict and l < len(attn_layers):
-                        attn_frequency_temp.extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
-                
+                    for hook in layers.keys():
+                        if l < len(layers[hook]):
+                            frequency_temp[hook].extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
+                    
             #Step 2: once we collece enough hidden states, we train the dictionary.
             if batch_idx%5==0 and batch_idx>0:
-                X_set_batched = list(batch_up(X_set_temp,args.batch_size_2))
-                words_frequency_batched = list(batch_up(frequency_temp,args.batch_size_2))
-                hidden_dict = sparsify_batch(words_frequency_batched, X_set_batched, device, args.reg, **hidden_dict)
-                X_set_temp = []
-                frequency_temp = []
-
-                if args.train_attention_dict:
-                    attn_X_set_batched = list(batch_up(attn_X_set_temp,args.batch_size_2))
-                    attn_words_frequency_batched = list(batch_up(attn_frequency_temp,args.batch_size_2))
-                    attn_hidden_dict = sparsify_batch(attn_words_frequency_batched, attn_X_set_batched, device, args.reg, **attn_hidden_dict)
-                    attn_X_set_temp = []
-                    attn_frequency_temp = []
+                for hook, (path, hidden_dict) in training_dicts.items():
+                    X_set_batched = list(batch_up(X_set_temp[hook], args.batch_size_2))
+                    words_frequency_batched = list(batch_up(frequency_temp[hook], args.batch_size_2))
+                    training_dicts[hook] = [path, sparsify_batch(words_frequency_batched, X_set_batched, device, args.reg, **hidden_dict)]
+                    X_set_temp[hook] = []
+                    frequency_temp[hook] = []
                 
 #               At this points, we finish exhuast all the hidden states we collect to update the dictionary. So we will dump all the hidden states vectors and jump back to step 1. We also print our some statistic for dictionary training so one can check how good their training are.
-                print(f"Total_step {epoch}, snr: {hidden_dict['snr']}, act1 max: {hidden_dict['ActL1'].max()}, act1 min: {hidden_dict['ActL1'].min()}")
-                if args.train_attention_dict:
-                    print(f"attn dict: Total_step {epoch}, snr: {attn_hidden_dict['snr']}, act1 max: {attn_hidden_dict['ActL1'].max()}, act1 min: {attn_hidden_dict['ActL1'].min()}")
+                for hook, (_, hidden_dict) in training_dicts.items():
+                    logging.info(f"for hook {hook}: batch {batch_idx}, snr: {hidden_dict['snr']}, act1 max: {hidden_dict['ActL1'].max()}, act1 min: {hidden_dict['ActL1'].min()}")
 
     if not os.path.exists(save_directory):
         os.makedirs(save_directory)
 
-    np.save(filename_save, hidden_dict["PHI"].cpu().detach().numpy())
-    if args.train_attention_dict:
-        np.save(attn_filename_save, attn_hidden_dict["PHI"].cpu().detach().numpy())
+    for (filename_save, hidden_dict) in training_dicts.values():
+        np.save(filename_save, hidden_dict["PHI"].cpu().detach().numpy())
 
 if __name__ == '__main__':
 
@@ -175,14 +147,15 @@ if __name__ == '__main__':
     
     parser.add_argument('--sparsify_every_layer', type=bool, default=True, help='If true, trains every layer, if false trains even indexed layers.')    
 
+    parser.add_argument('--sparsify_specific_layers', type=dict, default=False, help='dict of hook names as keys and list of layer numbers (ints) to sparsify.')    
+
     parser.add_argument('--epoches', type=int, default=2, help=
-                        'numbers of epoch you want to train your dictionary')
+                        'numbers of epochs to train dictionary')
     
-    parser.add_argument('--PHI_NUM', type=int, default=2000, help=
-                        'The size of the dictionary. Also equivalent to the number of transformer factors.')
-    
-    parser.add_argument('--PHI_NUM_ATTN', type=int, default=2000, help=
-                        'The size of the attention dictionary. Also equivalent to the number of attention transformer factors.')
+    parser.add_argument('--hooks', type=list, default=["hook_resid_post", "hook_attn_out"], help='List of names of hooks for dictionary training. Names must correspond to TransformerLens hooks.')
+
+    parser.add_argument('--PHI_NUM_DICT', type=dict, default={"hook_resid_post": 2000, "hook_attn_out": 2000}, help=
+                        'The size of the dictionary. Also equivalent to the number of transformer factors. Keys are TransformerLens hook names.')
     
     parser.add_argument('--HIDDEN_DIM', type=int, default=768, help=
                         'The size of hidden state of your transformer model. The default the size of hidden states of gpt2')
@@ -196,21 +169,20 @@ if __name__ == '__main__':
     parser.add_argument('--reg', type=float, default=0.3, help=
                         'The regularization factor for sparse coding. You should use the same one you used in inference ')
     
-    parser.add_argument('--load', type=str, default=None, help=
-                        'Instead of intialize an random dictionary for training. You can also enter a path here indicating the the path of the dictionary you want to start with. The file must be a .npy file')
-    
-    parser.add_argument('--load_attn', type=str, default=None, help=
-                        'Instead of intialize an random dictionary for training for attention. You can also enter a path here indicating the the path of the attention dictionary you want to start with. The file must be a .npy file')
+    parser.add_argument('--load', type=dict, default=None, help=
+                        'Instead of intializing a random dictionary for training you can enter a dict of paths here with the hook names as keys and paths as values. The files must be a .npy file')
     
     parser.add_argument('--training_data', type=str, default='./data/sentences.npy', help=
                         'path of training data file. Again, must be a .npy file')
     
     parser.add_argument('--name', type=str, default='short', 
-                        help='The name you want to have for your trained dictionary file  ')
-
+                        help='The name you want to have for your trained dictionary files (hook names will be added to name)')
+    
     parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
     
-    parser.add_argument('--train_attention_dict', type=bool, default=True, help='Train basis for hidden state directly after attention layer. Defaults to True.')    
+    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos')    
+
+    parser.add_argument('--default_bos', type=bool, default=False, help='Whether or not tokenizer type automatically prepends a bos token.')    
 
     args = parser.parse_args()
 

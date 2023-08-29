@@ -15,8 +15,7 @@ from tqdm import tqdm
 import scipy as sp
 import sklearn
 from transformers import AutoTokenizer
-from .modeling_gpt2 import GPT2Model
-
+from transformer_lens import HookedTransformer
 from datasets import load_dataset
 
 import random
@@ -32,7 +31,7 @@ def main():
 
     # load model and tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_version)
-    model = GPT2Model.from_pretrained(model_version)
+    model = HookedTransformer.from_pretrained(model_version)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
 
