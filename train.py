@@ -26,10 +26,10 @@ import sparsify_PyTorch
 from core import batch_up, get_inputs, collect_hidden_states, sparsify_batch, FISTA_optim_dict
 
 def main():
-    logging.basicConfig(filename=args.training_log, encoding='utf-8', level=logging.DEBUG)
+    logging.basicConfig(filename="training_log.log", encoding='utf-8', level=logging.DEBUG)
     assert len(args.hooks) == len(list(args.PHI_NUM_DICT.keys())), "Number of phi numbers and hooks specified must match."
     save_directory = './dictionaries/'
-    training_dicts = {hook: [f'./dictionaries/{args.model_version}_{args.name}_reg{args.reg}_d{args.PHI_NUM_DICT[hook]}_epoch{args.epoches}'] for hook in args.hook}
+    training_dicts = {hook: [f'./dictionaries/{args.model_version}_{args.name}_reg{args.reg}_d{args.PHI_NUM_DICT[hook]}_epoch{args.epoches}'] for hook in args.hooks}
     model_version = args.model_version
 
     # load model and tokenizer
@@ -56,8 +56,8 @@ def main():
         training_dicts[hook].append(FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM_DICT[hook], device))
     
     # dicts for activation collection and batch word frequency data
-    frequency_temp = {hook: [] for hook in args.hook}
-    X_set_temp = {hook:[] for hook in args.hook}
+    frequency_temp = {hook: [] for hook in args.hooks}
+    X_set_temp = {hook:[] for hook in args.hooks}
         
     #or you can load a dictionary. You might want to do this if you are high way trough training a dictionary. And you want to keep training it.
     if args.load:
@@ -85,6 +85,8 @@ def main():
                     np.save(file_name, hidden_dict["PHI"].cpu().detach().numpy())
 
             batch = sentences_batched[batch_idx]
+            # Note that if a tokenizer adds a bos token by default
+            # this code assumes args.
             _, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
             max_len = max([len(s) for s in inputs_no_pad_ids])
             pad_lens = [max_len-len(s) for s in inputs_no_pad_ids]
@@ -103,10 +105,10 @@ def main():
                     to_sparsify = args.sparsify_specific_layers
                     hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() if (int(name.split(".")[1]) in to_sparsify[hook] and hook == name.split(".")[-1])]
                 hook_hidden_states.sort()
-                layers = [num for num, _ in hook_hidden_states]
-                layers[hook] = layers
+                layers_hook = [num for num, _ in hook_hidden_states]
+                layers[hook] = layers_hook
                 hook_hidden_states = [t for _, t in hook_hidden_states]
-                X_set_temp[hook].extend(collect_hidden_states(hidden_states, pad_lens, layers))
+                X_set_temp[hook].extend(collect_hidden_states(hook_hidden_states, pad_lens, layers_hook))
 
             # TODO: refactor this token frequency count strategy!
             
@@ -180,9 +182,8 @@ if __name__ == '__main__':
     
     parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
     
-    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos')    
+    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If you are using a tokenizew')    
 
-    parser.add_argument('--default_bos', type=bool, default=False, help='Whether or not tokenizer type automatically prepends a bos token.')    
 
     args = parser.parse_args()
 
