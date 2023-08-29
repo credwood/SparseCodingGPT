@@ -81,7 +81,7 @@ def collect_hidden_states(hidden_states, pad_lens):
         List of hidden state vectors without padding dimensions
     """
     X_set_temp = []
-    for hidden_state in range(hidden_states):
+    for hidden_state in hidden_states:
         X=hidden_state.cpu().detach().numpy()
         for i in range(len(X)):
             sentences_trunc = X[i][:pad_lens[i]] # padding assumed to be on right
