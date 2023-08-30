@@ -2,34 +2,27 @@
 dictionary training
 adapted from: https://github.com/zeyuyun1/TransformerVis/blob/main/train.py
 """
-import os
 import argparse
-# import imageio
 import numpy as np
-import numpy.linalg as la
-
 import logging
+import os
+
+import nltk
 import torch
 from tqdm import tqdm
-import scipy as sp
-import sklearn
 from transformers import AutoTokenizer
 from transformer_lens import HookedTransformer
 
-from datasets import load_dataset
-import nltk
-from nltk.probability import FreqDist
-from sklearn.datasets import load_digits
-
-# import sparsify
-import sparsify_PyTorch
 from core import batch_up, get_inputs, collect_hidden_states, sparsify_batch, FISTA_optim_dict
 
 def main():
     logging.basicConfig(filename="training_log.log", encoding='utf-8', level=logging.DEBUG)
     assert len(args.hooks) == len(list(args.PHI_NUM_DICT.keys())), "Number of phi numbers and hooks specified must match."
     save_directory = './dictionaries/'
-    training_dicts = {hook: [f'./dictionaries/{hook}_{args.model_version}_{args.name}_reg{args.reg}_d{args.PHI_NUM_DICT[hook]}_epoch{args.epoches}'] for hook in args.hooks}
+    training_dicts = {hook: 
+                      [f'./dictionaries/{hook}_{args.model_version}_{args.name}_reg{args.reg}_d{args.PHI_NUM_DICT[hook]}_epoch{args.epoches}'] 
+                      for hook in args.hooks
+                      }
     model_version = args.model_version
 
     # load model and tokenizer
@@ -41,9 +34,10 @@ def main():
     # load data
     sentences = np.load(args.training_data).tolist()[:args.num_instances]
     
-    print("Numbers of sentences: {}".format(len(sentences)))
-    # collect the frequency of each word in our training data. The word with high freqeuncy should receive a smaller weight
-    #during the dictionary update. We took care of this in our training loop. The reason for doing this is explained in       the appendix 
+    print(f"Numbers of sentences: {len(sentences)}")
+    # collect the frequency of each word in training data. 
+    # words with higher freqeuncies receive smaller weights during the dictionary update.
+    # the reason for doing this is explained in the appendix of original Yun et al paper.
     words = []
     for s in sentences:
         words.extend(tokenizer.tokenize(s))
@@ -51,32 +45,34 @@ def main():
     for w in data_analysis:
         data_analysis[w] = np.sqrt(data_analysis[w])
 
-    #initilize the training dictionaries and some variable used in dictionary learning for eahc hook type
+    # initilize the training dictionaries and 
+    # some variables used in dictionary learning for each hook type
     for hook in training_dicts.keys():
         training_dicts[hook].append(FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM_DICT[hook], device))
     
-    # dicts for activation collection and batch word frequency data
+    # dicts for batch activation and word frequency collection
     frequency_temp = {hook: [] for hook in args.hooks}
     X_set_temp = {hook:[] for hook in args.hooks}
         
-    #or you can load a dictionary. You might want to do this if you are high way trough training a dictionary. And you want to keep training it.
+    # Instead of using newly instantiated basis dicts
+    # you can load basis 'checkpoints' for specified hooks 
     if args.load:
         for hook, path in args.load.items():
             print(f'loading {hook} from: {path}')
             PHI = torch.from_numpy(np.load(path)).to(device)
             training_dicts[hook]["PHI"] = PHI
 
-    #starting the dictionary training loop, the training loop is divided into the following 2 steps:
-    #1. collect hidden states from transformer. Once we collect enough those hidden state vector, we jump to step 2.
-    #2. Use the hidden state vectors collect from step 1 to update the dictionary. Once we are done with exhuast those hidden states. We jump back step 1 to collect more of those hidden states.
+    # starting the dictionary training loop, the training loop is divided into the following 2 steps:
+    # 1. collect hidden states from transformer. once enough hidden states are collected, we jump to step 2.
+    # 2. use the hidden states from step 1 to update the dictionary. 
     sentences_batched = list(batch_up(sentences,batch_size=args.batch_size_1))
     for epoch in range(args.epoches):
         print("Epoch: {}".format(epoch))
         
-        #Step 1: collecting hidden states using different input sentences from transformer model: 
+        #Step 1: collecting hidden states: 
         for batch_idx in tqdm(range(len(sentences_batched)),'main loop'):
             if batch_idx%100==0:
-                #save your dictionary every now and then to avoid the unexpected crash during training loop:
+                #save dictionary checkpoint:
                 if not os.path.exists(save_directory):
                     os.makedirs(save_directory)
 
@@ -85,8 +81,6 @@ def main():
                     np.save(file_name, hidden_dict["PHI"].cpu().detach().numpy())
 
             batch = sentences_batched[batch_idx]
-            # Note that if a tokenizer adds a bos token by default
-            # this code assumes args.
             _, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
             pad_lens = [len(s) for s in inputs_no_pad_ids]
 
@@ -94,15 +88,20 @@ def main():
             layers = {}
             for hook in X_set_temp.keys():
                 
-                # this looks silly but we won't assume that the dictionary will maintain order
-                # instead we take the layer number in the parameter name 
-                # names are formated: `blocks.{layer num}.{optional layernorm}.{hook_name}`
+                # names are formated: `blocks.{layer num}.{optional layernorm}.{hook}`
                 if args.sparsify_every_layer:
-                    hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() if hook == name.split(".")[-1]]
+                    hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() 
+                                          if hook == name.split(".")[-1]
+                                          ]
                 else:
-                    assert args.sparsify_specific_layers is not None, "If not sparsifying eveyr layer, must provide dictionary with layer number for each hook"
+                    assert args.sparsify_specific_layers is not None, "If not sparsifying every layer, must provide dictionary with layer numbers for each hook"
                     to_sparsify = args.sparsify_specific_layers
-                    hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() if (int(name.split(".")[1]) in to_sparsify[hook] and hook == name.split(".")[-1])]
+                    hook_hidden_states = [(int(name.split(".")[1]), t) for name, t in hidden_states.items() 
+                                          if (int(name.split(".")[1]) in to_sparsify[hook] and hook == name.split(".")[-1])
+                                          ]
+                
+                # this looks silly but we won't assume that the dictionary will maintain order
+                # instead we sort by the layer numbers in the full hook name.
                 hook_hidden_states.sort()
                 layers[hook] = len([num for num, _ in hook_hidden_states])
                 hook_hidden_states = [t for _, t in hook_hidden_states]
@@ -113,13 +112,13 @@ def main():
             freq_layer = max([l for l in layers.values()])
             for l in range(freq_layer):
                 # update word/sentence tracker and frequency
-                for hook in layers.keys():
-                    if l < layers[hook]:
+                for hook, hook_len in layers.items():
+                    if l < hook_len:
                         for tokens in inputs_no_pad_ids:
-                            tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT has bug
+                            tokenized = [tokenizer.decode(token) for token in tokens] # `convert_ids_to_tokens` method for GPT seems to have bug, not using it
                             frequency_temp[hook].extend([data_analysis[w] if w in data_analysis else 1 for w in tokenized])
                     
-            #Step 2: once we collece enough hidden states, we train the dictionary.
+            # step 2: train the dictionary.
             if batch_idx%5==0 and batch_idx>0:
                 for hook, (path, hidden_dict) in training_dicts.items():
                     X_set_batched = list(batch_up(X_set_temp[hook], args.batch_size_2))
@@ -128,7 +127,7 @@ def main():
                     X_set_temp[hook] = []
                     frequency_temp[hook] = []
                 
-#               At this points, we finish exhuast all the hidden states we collect to update the dictionary. So we will dump all the hidden states vectors and jump back to step 1. We also print our some statistic for dictionary training so one can check how good their training are.
+                # logging statistic for dictionary training.
                 for hook, (_, hidden_dict) in training_dicts.items():
                     logging.info(f"for hook {hook}: batch {batch_idx}, snr: {hidden_dict['snr']}, act1 max: {hidden_dict['ActL1'].max()}, act1 min: {hidden_dict['ActL1'].min()}")
 
