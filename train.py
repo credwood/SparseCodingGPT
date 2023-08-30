@@ -179,7 +179,7 @@ if __name__ == '__main__':
     
     parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
     
-    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If you are using a tokenizew')    
+    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If tokenizer automatically prepends a bos this value must be set to True.')    
 
 
     args = parser.parse_args()

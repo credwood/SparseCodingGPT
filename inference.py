@@ -86,17 +86,12 @@ def main():
             
             for hook, layer in args.hook_layer.items():
                 hook_hidden_states = None
-                for name, t in hidden_states.items():
-                    name_split = name.split(".")
-                    if len(name_split) < 3:
-                        continue
-                    if int(name_split[1]) == layer and hook == name_split[-1]:
-                        hook_hidden_states = t
-                        break
+                name = f"blocks.{layer}.{hook}"
+                hook_hidden_states = hidden_states[name]
                 assert hook_hidden_states is not None, f"hook name: {hook} and layer: {layer} not in activation cache "
                 
                 for i in range(len(hook_hidden_states)):
-                    sentences_trunc = hook_hidden_states[i][pad_lens[i]:]
+                    sentences_trunc = hook_hidden_states[i][:pad_lens[i]]
                     for s in range(len(sentences_trunc)):
                         X_set[hook].append(sentences_trunc[s])
 
@@ -165,7 +160,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--model_version', type=str, default='gpt2', help='The model type.')    
     
-    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If you are using a tokenizew')    
+    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If tokenizer automatically prepends a bos this value must be set to True.')    
 
     args = parser.parse_args()
 

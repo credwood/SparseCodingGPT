@@ -242,9 +242,9 @@ def decode(token,ids):
 
     return sent
 
-def generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,sparse_dim,
+def generate_salient_map(model,tokenizer,l,hook_name,basis1,text_instance,word_index,sparse_dim,
                          num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,
-                         feature_selection='auto'):
+                         feature_selection='auto', device="cuda", prepend_bos=False):
 #     this function is modified from the LimeTextExplainer function from the lime repo:
 #     https://github.com/marcotcr/lime/blob/a2c7a6fb70bce2e089cb146a31f483bf218875eb/lime/lime_text.py#L301
 #     Zeyu Yun modified it to fit the huggingface style bert tokenizer.
@@ -264,24 +264,26 @@ def generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,spars
     
     def classifier_fn(inputs):
 
-#         hook_1 = Save_int()
-#         handle_1 = model.encoder.layer[l-1].attention.output.dropout.register_forward_hook(hook_1)
-        #     inputs = tokenizer(str_to_predict,return_tensors='pt', add_special_tokens=False).cuda()
         I_cuda_ls = []
         inputs_batched = batch_up(inputs,BATCH_SIZE_1)
         for inputs in inputs_batched:
-            inputs = torch.tensor(inputs).cuda()
-            hidden_states = model(inputs,output_hidden_states=True).hidden_states # includes initial embedding layer
-            X_att=hidden_states[l].cpu().detach().numpy()
+            inputs = torch.tensor(inputs).to(device)
+            _ , hidden_states = model.run_with_cache(inputs)
+            hidden_state = None
+            name = f"blocks.{l}.{hook_name}"
+            hidden_state = hidden_states[name]
 
+            assert hidden_state is not None, f"hook name: {hook_name} and layer: {l} not in activation cache"
+            
+            X_att = hidden_state.cpu().detach().numpy()
             I_cuda_ls.extend(X_att[:,word_index,:])
+
         result= []
         I_cuda_batched = batch_up(I_cuda_ls,BATCH_SIZE_2)
         for batch in I_cuda_batched:
-            I_cuda = torch.from_numpy(np.stack(batch, axis=1)).cuda()
+            I_cuda = torch.from_numpy(np.stack(batch, axis=1)).to(device)
             X_att_sparse = sparsify_PyTorch.FISTA(I_cuda, basis1, reg, 1000)[0].T
             result.extend(X_att_sparse[:,sparse_dim].cpu().detach().numpy())
-    #     print(np.array(result).shape)
 
         return np.array(result).reshape(-1,1)
 
@@ -298,7 +300,7 @@ def generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,spars
     inverse_data= np.array(inputs)
     inverse_data[~data.astype('bool')]=tokenizer.convert_tokens_to_ids(tokenizer.unk_token)
     distances = distance_fn(sp.sparse.csr_matrix(data))
-    yss = classifier_fn(inverse_data)
+    yss = classifier_fn(inverse_data, device)
 
     salient_map = dict(explainer.base.explain_instance_with_data(
                     data, yss, distances, 0, num_features,
@@ -308,9 +310,12 @@ def generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,spars
     return salient_map
 
 
-def print_example_with_saliency(model,tokenizer,l,basis1,examples,sparse_dim,num_features =10,
+def print_example_with_saliency(model,tokenizer,l,hook_name,basis1,examples,sparse_dim,num_features =10,
                                 num_samples = 1051,repeat = False,BATCH_SIZE_1=8,BATCH_SIZE_2=200,
-                                reg=0.3,feature_selection='auto'):
+                                reg=0.3,feature_selection='auto', device="cuda", prepend_bos=False):
+    """    
+    """
+    
     # text_instance = """music in the uk and ireland stating that the single" welds a killer falsetto chorus to a latterday incarnation of the' wall of sound'"."""
     final_print=''
     all_sentences={}
@@ -322,7 +327,7 @@ def print_example_with_saliency(model,tokenizer,l,basis1,examples,sparse_dim,num
         tokens = tokenizer.tokenize(text_instance)
 #         if len(tokens)>70:
 #             continue
-        salient_map = generate_salient_map(model,tokenizer,l,basis1,text_instance,word_index,sparse_dim,num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,feature_selection = feature_selection)
+        salient_map = generate_salient_map(model,tokenizer,l,hook_name,basis1,text_instance,word_index,sparse_dim,num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,feature_selection = feature_selection,device=device, prepend_bos=prepend_bos)
         result = decode_color(tokens,salient_map,word_index)
         if sent_index not in all_sentences:
             all_sentences[sent_index] = [result]
