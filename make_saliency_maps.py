@@ -1,11 +1,12 @@
 import argparse
+import os
 
 import numpy as np
 import torch
 from transformers import AutoTokenizer
 from transformer_lens import HookedTransformer
 
-import tqdm
+from tqdm import tqdm
 
 from core import print_example_with_saliency
 
@@ -21,9 +22,10 @@ def main():
     example_list = np.load(args.example_dir,allow_pickle=True)[None][0]
     basis1 = torch.from_numpy(np.load(args.dictionary_dir)).to(device)
 
-    # note that for models with tokenizers that automatically prepend bos
-    # saliency map functions assume dictionaries were trained with the prepended bos
-    with open(args.ouput_dir + '{args.hook_name}/l_{}.txt'.format(args.l),'w') as the_file:
+    if not os.path.exists(args.outfile_dir):
+        os.makedirs(args.outfile_dir)
+
+    with open(f"{args.outfile_dir}{args.hook_name}_l_{args.l}.txt",'w') as the_file:
         for sparse_dim in tqdm(range(len(example_list))):
             examples = example_list[sparse_dim][:args.top_n_activation]
             aa =  print_example_with_saliency(model, tokenizer, args.l, args.hook_name,
@@ -59,7 +61,7 @@ if __name__ == '__main__':
     parser.add_argument('--top_n_activation', type=int, default=40, help=
                         'This number indicates how many examples do we collect for each transformer factor. By default, we collect top 200 activated examples.')
     
-    parser.add_argument('--dictionary_dir', type=str, default = './dictionaries/example_dict_long.npy',help=
+    parser.add_argument('--dictionary_dir', type=str, default = './dictionaries/hook_resid_post_gpt2_sparse_dict_reg0.3_d2000_epoch2.npy',help=
                         'This is path for the a trained dictionary using train.py. The trained dictionary is a shape (hidden_state,dictionary_size) array saved as npy file.')
     
     parser.add_argument('--model_version', type=str, default='gpt2', help='The GPT model type.')  

@@ -300,7 +300,7 @@ def generate_salient_map(model,tokenizer,l,hook_name,basis1,text_instance,word_i
     inverse_data= np.array(inputs)
     inverse_data[~data.astype('bool')]=tokenizer.convert_tokens_to_ids(tokenizer.unk_token)
     distances = distance_fn(sp.sparse.csr_matrix(data))
-    yss = classifier_fn(inverse_data, device)
+    yss = classifier_fn(inverse_data)
 
     salient_map = dict(explainer.base.explain_instance_with_data(
                     data, yss, distances, 0, num_features,
