@@ -29,7 +29,7 @@ def main():
     logging.basicConfig(filename="training_log.log", encoding='utf-8', level=logging.DEBUG)
     assert len(args.hooks) == len(list(args.PHI_NUM_DICT.keys())), "Number of phi numbers and hooks specified must match."
     save_directory = './dictionaries/'
-    training_dicts = {hook: [f'./dictionaries/{args.model_version}_{args.name}_reg{args.reg}_d{args.PHI_NUM_DICT[hook]}_epoch{args.epoches}'] for hook in args.hooks}
+    training_dicts = {hook: [f'./dictionaries/{hook}_{args.model_version}_{args.name}_reg{args.reg}_d{args.PHI_NUM_DICT[hook]}_epoch{args.epoches}'] for hook in args.hooks}
     model_version = args.model_version
 
     # load model and tokenizer
