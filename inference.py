@@ -42,12 +42,7 @@ def main():
     # building dictionaries to collect examples for each num_transformer_factors. 
     # notice that this "dictionary" is just the python dictionary, 
     # it's not the dictionary we used for dictionary learning.
-    good_examples_contents = {}
-    for d in range(args.num_transformer_factors):
-        good_examples_contents[d] = []
-      # good_examples_contents_new = {}
-      # for d in range(args.num_transformer_factors):
-            # good_examples_contents_new[d] = []
+    good_examples_contents = {hook:[[] for _ in range(factors)] for hook, factors in args.num_transformer_factors.items()}
 
     # shard our data set into piece to fit into RAM
     sentences_shards = list(batch_up(sentences, batch_size=args.shard_size))
@@ -120,20 +115,20 @@ def main():
                 
             # We save the top n activated examples for each transformer factor in a dictionary. An examples contains the following: The word that corresponds to the embedding vector, the context sentence, the position of the word int he context sentence, the level of activation.
             for d in range(args.num_transformer_factors[hook]):
-                good_examples_contents[d] = merge_two(example_dim_old(X_sparse_set,d,words,word_to_sentence,sentences_str,n=args.top_n_activation),good_examples_contents[d])[:args.top_n_activation]
+                good_examples_contents[hook][d] = merge_two(example_dim_old(X_sparse_set,d,words,word_to_sentence,sentences_str,n=args.top_n_activation),good_examples_contents[hook][d])[:args.top_n_activation]
                 
             # save the examples, which are in python dictionaries
             if not os.path.exists(args.outfile_dir):
                 os.makedirs(args.outfile_dir)
             
-            np.save(f"{args.outfile_dir}{hook}_example_l_{args.layer[hook]}.npy", good_examples_contents)
+            np.save(f"{args.outfile_dir}{hook}_example_l_{args.layer[hook]}.npy", good_examples_contents[hook])
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--dictionary_dir', type=dict, default = {"hook_resid_post":'./dictionaries/hook_resid_post_example_dict_short.npy', "hook_attn_out":'./dictionaries/hook_attn_out_example_dict_short.npy'},help=
+    parser.add_argument('--dictionary_dir', type=dict, default = {"hook_resid_post":'../drive/MyDrive/dictionaries/hook_resid_post_gpt2_sparse_dict_reg0.3_d2000_epoch2', "hook_attn_out":'../drive/MyDrive/dictionaries/hook_attn_out_gpt2_sparse_dict_reg0.3_d2000_epoch2'},help=
                         'Dictionary of hook names (keys) and file paths for trained dictionaries using train.py. The trained dictionary is a shape (hidden_state, dictionary_size) array saved as npy file.')
     
     parser.add_argument('--outfile_dir', type=str, default = './top_activate_examples/', help=
