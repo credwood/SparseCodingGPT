@@ -79,14 +79,18 @@ def main():
                 sentence_to_word[n1] = w_index
                 n1+=1
                 
-            # Collect hidden_states of a particular layers from the Transformer model. We also concadenate the hidden states of each 
-            # sentences (a sequence of vectors) into a giant list (we use this later for sparse code inferences).
+            # collect hidden_states of a particular layers from the Transformer model. 
+            # we concatenate the hidden states of each 
+            # sentences (a sequence of vectors) into a giant list for sparse code inferences.
             _ , hidden_states = model.run_with_cache(batch, prepend_bos=args.prepend_bos)
             
             for hook, layer in args.hook_layer.items():
                 hook_hidden_states = None
                 for name, t in hidden_states.items():
-                    if int(name.split(".")[1]) == layer and hook == name.split(".")[-1]:
+                    name_split = name.split(".")
+                    if len(name_split) < 3:
+                        continue
+                    if int(name_split[1]) == layer and hook == name_split[-1]:
                         hook_hidden_states = t
                         break
                 assert hook_hidden_states is not None, f"hook name: {hook} and layer: {layer} not in activation cache "
@@ -97,7 +101,7 @@ def main():
                         X_set[hook].append(sentences_trunc[s])
 
         # load dictionaries
-        basis_dict = {hook: torch.from_numpy(np.load(path)).device() for hook, path in args.dictionary_dir.items()}
+        basis_dict = {hook: torch.from_numpy(np.load(path)).to(device) for hook, path in args.dictionary_dir.items()}
         assert list(basis_dict.keys()).sort() == list(args.num_transformer_factors.keys()).sort() == list(X_set.keys()).sort(), "dictionary_dir, num_transformer_factors and hook_layer arguments must all have exactly the same hook names as keys"
         
         # sparse code inference for each dictionary
@@ -106,8 +110,8 @@ def main():
             X_set_batched = list(batch_up(X_set[hook], args.batch_size_2))
             X_sparse_set = []
             for i in tqdm(range(len(X_set_batched)),'sparse_inference'):
-                batch = X_set_batched[i]
-                I_cuda = torch.from_numpy(np.stack(batch, axis=1)).cuda()
+                t_batch = X_set_batched[i]
+                I_cuda = torch.stack(t_batch, axis=1).to(device)
                 X_sparse = sparsify_PyTorch.FISTA(I_cuda, basis, args.reg, 500)[0].T
                 X_sparse_set.extend(X_sparse.cpu().detach().numpy())
    
@@ -121,14 +125,14 @@ def main():
             if not os.path.exists(args.outfile_dir):
                 os.makedirs(args.outfile_dir)
             
-            np.save(f"{args.outfile_dir}{hook}_example_l_{args.layer[hook]}.npy", good_examples_contents[hook])
+            np.save(f"{args.outfile_dir}{hook}_example_l_{args.hook_layer[hook]}.npy", good_examples_contents[hook])
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--dictionary_dir', type=dict, default = {"hook_resid_post":'../drive/MyDrive/dictionaries/hook_resid_post_gpt2_sparse_dict_reg0.3_d2000_epoch2', "hook_attn_out":'../drive/MyDrive/dictionaries/hook_attn_out_gpt2_sparse_dict_reg0.3_d2000_epoch2'},help=
+    parser.add_argument('--dictionary_dir', type=dict, default = {"hook_resid_post":'../drive/MyDrive/dictionaries/hook_resid_post_gpt2_sparse_dict_reg0.3_d2000_epoch2.npy', "hook_attn_out":'../drive/MyDrive/dictionaries/hook_attn_out_gpt2_sparse_dict_reg0.3_d2000_epoch2.npy'},help=
                         'Dictionary of hook names (keys) and file paths for trained dictionaries using train.py. The trained dictionary is a shape (hidden_state, dictionary_size) array saved as npy file.')
     
     parser.add_argument('--outfile_dir', type=str, default = './top_activate_examples/', help=

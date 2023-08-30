@@ -3,7 +3,8 @@
 This is a reimplementation of [this](https://github.com/zeyuyun1/TransformerVis/blob/main/readme.md) project based on the paper [Transformer visualization via dictionary learning: contextualized embedding as a linear superposition of transformer factors](https://arxiv.org/pdf/2103.15949.pdf) by by Zeyu Yun*, Yubei Chen*, Bruno A Olshausen, and Yann LeCun.
 
 ## Updates
-8/30: Dev branch for adding support for TransformerLens merged to main. Testing underway.
+8/30: Dev branch for adding support for TransformerLens merged to main. 
+Inference updated for TransformerLense. Testing with GPT2 underway.
 
 8/29: Dev branch for adding support for TransformerLens. Training updated.
 Inference not updated.
