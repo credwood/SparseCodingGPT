@@ -174,8 +174,8 @@ if __name__ == '__main__':
     parser.add_argument('--training_data', type=str, default='./data/sentences.npy', help=
                         'path of training data file. Again, must be a .npy file')
     
-    parser.add_argument('--name', type=str, default='short', 
-                        help='The name you want to have for your trained dictionary files (hook names will be added to name)')
+    parser.add_argument('--name', type=str, default='sparse_dict', 
+                        help='The name for trained dictionary files (hook names will be prepended to full name)')
     
     parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
     

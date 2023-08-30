@@ -1,5 +1,6 @@
-# Yubei Chen, Sparse Manifold Transform Lib Ver 0.1
 """
+Yubei Chen, Sparse Manifold Transform Lib Ver 0.1
+
 from: https://github.com/zeyuyun1/TransformerVis/blob/main/sparsify_PyTorch.py
 This file contains multiple method to sparsify the coefficients
 """
