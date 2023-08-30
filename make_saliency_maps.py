@@ -31,7 +31,7 @@ def main():
                                               num_samples=args.num_samples, repeat=False,
                                               BATCH_SIZE_1=8, BATCH_SIZE_2=200, reg=args.reg,
                                               feature_selection=args.feature_selection,
-                                              device=device, prepend_bos=args.prepend_bos)
+                                              device=device)
             the_file.write(aa+'\n')
  
 if __name__ == '__main__':
@@ -48,8 +48,6 @@ if __name__ == '__main__':
     
     parser.add_argument('--example_dir', type=str, default='./top_activated_examples/hook_resid_post_example_l_1.npy', help='The path of the top activated examples from a given layer for a given hook')
     
-    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If tokenizer automatically prepends a bos this value must be set to True.')  
-
     parser.add_argument('--outfile_dir', type=str, default = './top_activated_examples_saliency/', help=
                         'Directory to save saliency maps.')
     

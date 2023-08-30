@@ -81,10 +81,10 @@ def main():
                     np.save(file_name, hidden_dict["PHI"].cpu().detach().numpy())
 
             batch = sentences_batched[batch_idx]
-            _, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
+            inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
             pad_lens = [len(s) for s in inputs_no_pad_ids]
 
-            _, hidden_states = model.run_with_cache(batch, prepend_bos=args.prepend_bos)
+            _, hidden_states = model.run_with_cache(inputs["input_ids"])
             layers = {}
             for hook in X_set_temp.keys():
                 
@@ -179,8 +179,6 @@ if __name__ == '__main__':
     
     parser.add_argument('--model_version', type=str, default='gpt2', help='Only Hugging Face GPT models supported.')    
     
-    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If tokenizer automatically prepends a bos this value must be set to True.')    
-
 
     args = parser.parse_args()
 

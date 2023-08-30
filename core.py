@@ -244,7 +244,7 @@ def decode(token,ids):
 
 def generate_salient_map(model,tokenizer,l,hook_name,basis1,text_instance,word_index,sparse_dim,
                          num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,
-                         feature_selection='auto', device="cuda", prepend_bos=False):
+                         feature_selection='auto', device="cuda"):
 #     this function is modified from the LimeTextExplainer function from the lime repo:
 #     https://github.com/marcotcr/lime/blob/a2c7a6fb70bce2e089cb146a31f483bf218875eb/lime/lime_text.py#L301
 #     Zeyu Yun modified it to fit the huggingface style bert tokenizer.
@@ -312,7 +312,8 @@ def generate_salient_map(model,tokenizer,l,hook_name,basis1,text_instance,word_i
 
 def print_example_with_saliency(model,tokenizer,l,hook_name,basis1,examples,sparse_dim,num_features =10,
                                 num_samples = 1051,repeat = False,BATCH_SIZE_1=8,BATCH_SIZE_2=200,
-                                reg=0.3,feature_selection='auto', device="cuda", prepend_bos=False):
+                                reg=0.3,feature_selection='auto', device="cuda"
+                                ):
     """    
     """
     
@@ -327,7 +328,13 @@ def print_example_with_saliency(model,tokenizer,l,hook_name,basis1,examples,spar
         tokens = tokenizer.tokenize(text_instance)
 #         if len(tokens)>70:
 #             continue
-        salient_map = generate_salient_map(model,tokenizer,l,hook_name,basis1,text_instance,word_index,sparse_dim,num_features,num_samples,BATCH_SIZE_1,BATCH_SIZE_2,reg,feature_selection = feature_selection,device=device, prepend_bos=prepend_bos)
+        salient_map = generate_salient_map(model,tokenizer,l,hook_name,
+                                           basis1,text_instance,word_index,
+                                           sparse_dim,num_features,num_samples,
+                                           BATCH_SIZE_1,BATCH_SIZE_2,reg,
+                                           feature_selection = feature_selection,
+                                           device=device
+                                           )
         result = decode_color(tokens,salient_map,word_index)
         if sent_index not in all_sentences:
             all_sentences[sent_index] = [result]

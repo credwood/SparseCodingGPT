@@ -64,7 +64,7 @@ def main():
             # but it basically keep track of a map between the word in each sentence 
             # to each of those sentences for convinience
             batch = sentences_batched[batch_idx]
-            _, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
+            inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
             pad_lens = [len(s) for s in inputs_no_pad_ids]
 
             for tokens in inputs_no_pad_ids:
@@ -82,7 +82,7 @@ def main():
             # collect hidden_states of a particular layers from the Transformer model. 
             # we concatenate the hidden states of each 
             # sentences (a sequence of vectors) into a giant list for sparse code inferences.
-            _ , hidden_states = model.run_with_cache(batch, prepend_bos=args.prepend_bos)
+            _ , hidden_states = model.run_with_cache(inputs["input_ids"])
             
             for hook, layer in args.hook_layer.items():
                 hook_hidden_states = None
@@ -160,8 +160,6 @@ if __name__ == '__main__':
 
     parser.add_argument('--model_version', type=str, default='gpt2', help='The model type.')    
     
-    parser.add_argument('--prepend_bos', type=bool, default=False, help='Option for HookedTransformer to prepend bos. If tokenizer automatically prepends a bos this value must be set to True.')    
-
     args = parser.parse_args()
 
     main()
