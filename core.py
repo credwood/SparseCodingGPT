@@ -171,7 +171,7 @@ def sparsify_batch(words_frequency_batched, hidden_batch, device, regularization
 
 # ---- Utility methods for generating saliency maps --- #
 
-# TODO test/adapt these, not yet adapted from original Yun et al code
+# TODO test these for TransformerLense models
 
 def cstr(s, color='black'):
     return "<text style=color:{}>{}</text>".format(color, s)
