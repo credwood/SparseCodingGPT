@@ -40,9 +40,7 @@ def main():
     sentences = np.load(args.data_dir).tolist()[:args.num_instances]
     
     # building dictionaries to collect examples for each num_transformer_factors. 
-    # notice that this "dictionary" is just the python dictionary, 
-    # it's not the dictionary we used for dictionary learning.
-    good_examples_contents = {hook:[[] for _ in range(factors)] for hook, factors in args.num_transformer_factors.items()}
+    good_examples_contents = {hook: {fact: [] for fact in range(factors)} for hook, factors in args.num_transformer_factors.items()}
 
     # shard our data set into piece to fit into RAM
     sentences_shards = list(batch_up(sentences, batch_size=args.shard_size))
@@ -112,8 +110,10 @@ def main():
                 I_cuda = torch.from_numpy(np.stack(batch, axis=1)).cuda()
                 X_sparse = sparsify_PyTorch.FISTA(I_cuda, basis, args.reg, 500)[0].T
                 X_sparse_set.extend(X_sparse.cpu().detach().numpy())
-                
-            # We save the top n activated examples for each transformer factor in a dictionary. An examples contains the following: The word that corresponds to the embedding vector, the context sentence, the position of the word int he context sentence, the level of activation.
+   
+            # save the top n activated examples for each transformer factor in a dictionary. 
+            # an examples contains the following: the word that corresponds to the embedding vector, the context sentence, 
+            # the position of the word in the context sentence, the level of activation.
             for d in range(args.num_transformer_factors[hook]):
                 good_examples_contents[hook][d] = merge_two(example_dim_old(X_sparse_set,d,words,word_to_sentence,sentences_str,n=args.top_n_activation),good_examples_contents[hook][d])[:args.top_n_activation]
                 
