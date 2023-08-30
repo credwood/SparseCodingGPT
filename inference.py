@@ -132,10 +132,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     
-    parser.add_argument('--dictionary_dir', type=dict, default = {"hook_resid_post":'../drive/MyDrive/dictionaries/hook_resid_post_gpt2_sparse_dict_reg0.3_d2000_epoch2.npy', "hook_attn_out":'../drive/MyDrive/dictionaries/hook_attn_out_gpt2_sparse_dict_reg0.3_d2000_epoch2.npy'},help=
+    parser.add_argument('--dictionary_dir', type=dict, default = {"hook_resid_post":'./dictionaries/hook_resid_post_gpt2_sparse_dict_reg0.3_d2000_epoch2.npy', "hook_attn_out":'./dictionaries/hook_attn_out_gpt2_sparse_dict_reg0.3_d2000_epoch2.npy'},help=
                         'Dictionary of hook names (keys) and file paths for trained dictionaries using train.py. The trained dictionary is a shape (hidden_state, dictionary_size) array saved as npy file.')
     
-    parser.add_argument('--outfile_dir', type=str, default = './top_activate_examples/', help=
+    parser.add_argument('--outfile_dir', type=str, default = './top_activated_examples/', help=
                         'Directory to save output files.')
         
     parser.add_argument('--data_dir', type=str,default ='./data/sentences.npy', help=
