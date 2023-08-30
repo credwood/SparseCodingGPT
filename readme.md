@@ -4,6 +4,9 @@ This is a reimplementation of [this](https://github.com/zeyuyun1/TransformerVis/
 
 ## Updates
 
+8/29: Dev branch for adding support for TransformerLens. Training updated.
+Inference not updated.
+
 8/17: Dictionary training for mid-layer resiudal stream added (PyTorch hook directly on the attention output, before addition of residual tensor). Module unstable; testing ongoing. 
 
 Inference for attention dictionary not yet implemented.

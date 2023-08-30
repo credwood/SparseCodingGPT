@@ -2,23 +2,18 @@
 adapted from: https://github.com/zeyuyun1/TransformerVis/blob/main/util.py
 """
 
-import re
 import numpy as np
-import sys
 import torch
 from tqdm import tqdm
 import scipy as sp
 import sklearn
 import torch.nn.functional as F
-from IPython.display import HTML as html_print
 from matplotlib import colors
 import string
 from math import log, e
 
-# import sparsify
 import sparsify_PyTorch
 
-# import lime
 from lime.lime_text import LimeTextExplainer
 
 result = string.punctuation
@@ -38,7 +33,7 @@ def example_dim_old(source, dim, words, word_to_sentence, sentences_str,
     my_df = []
     dim_slices = [x[dim] for x in source]
     indx = np.argsort(-np.array(dim_slices))[:n]
-#     indx = np.argpartition(dim_slices,-n)[-n:]
+    # indx = np.argpartition(dim_slices,-n)[-n:]
     for i in indx:
         word = words[i]
         act = dim_slices[i]
@@ -60,25 +55,25 @@ def get_inputs(tokenizer, prompts, device="cuda"):
         pad_id = 0
     input_ids = [[pad_id] * (maxlen - len(t)) + t for t in token_lists]
     attention_mask = [[0] * (maxlen - len(t)) + [1] * len(t) for t in token_lists]
-    return dict(
-        input_ids=torch.tensor(input_ids).to(device),
-        #    position_ids=torch.tensor(position_ids).to(device),
-        attention_mask=torch.tensor(attention_mask).to(device),
-    ), token_lists
+    return {
+        "input_ids": torch.tensor(input_ids).to(device),
+        "attention_mask": torch.tensor(attention_mask).to(device),
+    }, token_lists
 
 
-# Utility functions for collecting hidden states and applying optimization methods --- #
+# --- Utility functions for collecting hidden states and applying optimization methods --- #
 
 def collect_hidden_states(hidden_states, pad_lens):
     """
-    From a batch of hidden states, returns a list of vectors without padding dimensions
+    From a batch of hidden states, returns a list of tooken 
+    vectors without padding dimensions
 
     Args:
         hidden_states: a batch of model hidden states
         pad_lens: lengths of each sentences the batch
 
     Returns:
-        List of hidden state vectors without padding dimensions
+        list of hidden state vectors without padding dimensions
     """
     X_set_temp = []
     for hidden_state in hidden_states:
@@ -91,6 +86,18 @@ def collect_hidden_states(hidden_states, pad_lens):
     return X_set_temp
 
 def FISTA_optim_dict(HIDDEN_DIM, PHI_NUM, device):
+    """
+    Function for instantiating dictionaries of 
+    optimization parameters for training.
+
+    Args:
+        HIDDEN_DIM: int, hidden dim of model
+        PHI_NUM: int, num of transformer factors
+        device: device on which to put basis dict
+
+    Returns:
+        dictionary of training optimization parameters
+    """
     PHI_ = torch.randn([HIDDEN_DIM, PHI_NUM]).to(device)
     PHI_ = PHI_.div_(PHI_.norm(2,0))
 
@@ -117,7 +124,7 @@ def sparsify_batch(words_frequency_batched, hidden_batch, device, regularization
         words_frequency_batched: a list of work frequencies, repeated for each layer for convenience
         hidden_batch: batch of hidden states
         device: training device
-        kwargs: dictionary of optimization parameters, defined in the training loop
+        kwargs: dictionary of optimization parameters, see `FISTA_optim_dict` function
     
     returns: 
         dictionary of updated optimization paramters
@@ -163,6 +170,8 @@ def sparsify_batch(words_frequency_batched, hidden_batch, device, regularization
 
 
 # ---- Utility methods for generating saliency maps --- #
+
+# TODO test/adapt these, not yet adapted from original Yun et al code
 
 def cstr(s, color='black'):
     return "<text style=color:{}>{}</text>".format(color, s)

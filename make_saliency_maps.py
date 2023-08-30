@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import torch
 from transformers import AutoTokenizer
-from .modeling_gpt2 import GPT2Model
+from transformer_lens import HookedTransformer
 
 import tqdm
 
@@ -13,7 +13,7 @@ def main():
     model_version = args.model_version
 
     # load model
-    model = GPT2Model.from_pretrained(model_version)
+    model = HookedTransformer.from_pretrained(model_version)
     tokenizer = AutoTokenizer.from_pretrained(model_version)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)

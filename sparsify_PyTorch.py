@@ -6,18 +6,16 @@ This file contains multiple method to sparsify the coefficients
 import time
 import numpy as np
 import numpy.linalg as la
-#import utility
-from IPython.display import clear_output # This is to clean the output info to make the process cleaner
 
 import torch
 import torch.nn.functional as F
 import cupy as cp
 
-
-def quadraticBasisUpdate(basis, Res, ahat, lowestActivation, HessianDiag, stepSize = 0.001,constraint = 'L2', Noneg = False):
+def quadraticBasisUpdate(basis, Res, ahat, lowestActivation, HessianDiag, stepSize = 0.001, constraint = 'L2', Noneg = False):
     """
-    This matrix update the basis function based on the Hessian matrix of the activation.
-    It's very similar to Newton method. But since the Hessian matrix of the activation function is often ill-conditioned, we takes the pseudo inverse.
+    This matrix updates the basis function based on the Hessian matrix of the activation.
+    It's very similar to Newton's method. 
+    But since the Hessian matrix of the activation function is often ill-conditioned, we takes the pseudo inverse.
 
     Note: currently, we can just use the inverse of the activation energy.
     A better idea for this method should be caculating the local Lipschitz constant for each of the basis.
@@ -32,9 +30,11 @@ def quadraticBasisUpdate(basis, Res, ahat, lowestActivation, HessianDiag, stepSi
         basis = basis.div_(basis.norm(2,0))
     return basis
 
-def ISTA_PN(I,basis,lambd,num_iter,eta=None, useMAGMA=True):
+def ISTA_PN(I, basis, lambd, num_iter, eta=None, useMAGMA=False):
     # This is a positive-negative PyTorch-Ver ISTA solver
-    # MAGMA uses CPU-GPU hybrid method to solve SVD problems, which is great for single task. When running multiple jobs, this flag should be turned off to leave the svd computation on only GPU.
+    # MAGMA uses CPU-GPU hybrid method to solve SVD problems, 
+    # which is great for single task. When running multiple jobs, 
+    # this flag should be turned off to leave the svd computation on only GPU.
     dtype = basis.type()
     batch_size=I.size(1)
     M = basis.size(1)
@@ -60,7 +60,7 @@ def ISTA_PN(I,basis,lambd,num_iter,eta=None, useMAGMA=True):
         Res = I - torch.mm(basis,ahat)
     return ahat, Res
 
-def FISTA(I,basis,lambd,num_iter,eta=None, useMAGMA=False):
+def FISTA(I, basis, lambd, num_iter, eta=None, useMAGMA=False):
     # This is a positive-only PyTorch-Ver FISTA solver
     dtype = basis.type()
     batch_size=I.size(1)
@@ -90,7 +90,7 @@ def FISTA(I,basis,lambd,num_iter,eta=None, useMAGMA=False):
     Res = I - torch.mm(basis,ahat)
     return ahat, Res
 
-def ISTA(I,basis,lambd,num_iter,eta=None, useMAGMA=True):
+def ISTA(I, basis, lambd, num_iter, eta=None, useMAGMA=False):
     # This is a positive-only PyTorch-Ver ISTA solver
     dtype = basis.type()
     batch_size=I.size(1)
