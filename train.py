@@ -35,8 +35,8 @@ def main():
     sentences = np.load(args.training_data).tolist()[:args.num_instances]
     
     print(f"Numbers of sentences: {len(sentences)}")
-    # collect the frequency of each word in training data. 
-    # words with higher freqeuncies receive smaller weights during the dictionary update.
+    # collect the frequency of each token in training data. 
+    # tokens with higher freqeuncies receive smaller weights during the dictionary update.
     # the reason for doing this is explained in the appendix of original Yun et al paper.
     words = []
     for s in sentences:
@@ -50,7 +50,7 @@ def main():
     for hook in training_dicts.keys():
         training_dicts[hook].append(FISTA_optim_dict(args.HIDDEN_DIM, args.PHI_NUM_DICT[hook], device))
     
-    # dicts for batch activation and word frequency collection
+    # dicts for batch activation and token frequency collection
     frequency_temp = {hook: [] for hook in args.hooks}
     X_set_temp = {hook:[] for hook in args.hooks}
         
@@ -111,7 +111,7 @@ def main():
             
             freq_layer = max([l for l in layers.values()])
             for l in range(freq_layer):
-                # update word/sentence tracker and frequency
+                # update token/sentence tracker and frequency
                 for hook, hook_len in layers.items():
                     if l < hook_len:
                         for tokens in inputs_no_pad_ids:

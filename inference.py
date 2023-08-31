@@ -48,7 +48,7 @@ def main():
 
     # start the process to collect top activated example
     for shard_num in tqdm(range(len(sentences_shards)-1),'shards'):
-       # define some parameters use for laters
+       # define some parameters use later
         sentences_str = []
         words = []
         word_to_sentence = {} # word indice -> sentence (it belongs to) indice （sentence index, position in the sentence）
@@ -56,12 +56,13 @@ def main():
         n1 = 0
         n2 = 0
         X_set = {hook: [] for hook in args.hook_layer.keys()}
-        # put our data into batch and ready to feed into transformer model
+        
         sentences_batched = list(batch_up(sentences_shards[shard_num],batch_size=args.batch_size_1))
         for batch_idx in tqdm(range(len(sentences_batched)),'collect hidden states'):
             
+            # TODO refactor this approach
             # this parts of the code looks complicated, 
-            # but it basically keep track of a map between the word in each sentence 
+            # but it basically keeps track of a map between the tokens in each sentence 
             # to each of those sentences for convinience
             batch = sentences_batched[batch_idx]
             inputs, inputs_no_pad_ids = get_inputs(tokenizer, batch, device=device)
@@ -79,7 +80,7 @@ def main():
                 sentence_to_word[n1] = w_index
                 n1+=1
                 
-            # collect hidden_states of a particular layers from the Transformer model. 
+            # collect hidden_states of a particular layer from the model. 
             # we concatenate the hidden states of each 
             # sentences (a sequence of vectors) into a giant list for sparse code inferences.
             _ , hidden_states = model.run_with_cache(inputs["input_ids"])
@@ -101,7 +102,7 @@ def main():
         
         # sparse code inference for each dictionary
         for hook, basis in basis_dict.items():
-            # we batch the hidden states we collected from the last steps using a larget batch size
+            # we batch the hidden states we collected
             X_set_batched = list(batch_up(X_set[hook], args.batch_size_2))
             X_sparse_set = []
             for i in tqdm(range(len(X_set_batched)),'sparse_inference'):
@@ -111,8 +112,8 @@ def main():
                 X_sparse_set.extend(X_sparse.cpu().detach().numpy())
    
             # save the top n activated examples for each transformer factor in a dictionary. 
-            # an examples contains the following: the word that corresponds to the embedding vector, the context sentence, 
-            # the position of the word in the context sentence, the level of activation.
+            # an example contains the following: the token that corresponds to the embedding vector, the context sentence, 
+            # the position of the token in the context sentence, the level of activation.
             for d in range(args.num_transformer_factors[hook]):
                 good_examples_contents[hook][d] = merge_two(example_dim_old(X_sparse_set,d,words,word_to_sentence,sentences_str,n=args.top_n_activation),good_examples_contents[hook][d])[:args.top_n_activation]
                 
@@ -150,7 +151,7 @@ if __name__ == '__main__':
                         'The size of the dictionaries. Equivalent to the number of transformer factors. Keys are TransformerLens hook names.')
     
     parser.add_argument('--shard_size', type=int, default=1000, help=
-                        'TLDR: Make this number small if you have a memory error. This is number that indicates how much data (hidden states) that fits in your RAM at once. Recall that we are calculating the top-activated examples, so we need to calculate the top-n activations over the sparse code of all word vector. This is a really large number. Thus, we split this calculating max process in shards.')
+                        'TLDR: Make this number small if you have a memory error. This is number that indicates how much data (hidden states) that fits in your RAM at once. Recall that we are calculating the top-activated examples, so we need to calculate the top-n activations over the sparse code of all token vector. This is a really large number. Thus, we split this calculating max process in shards.')
     
     parser.add_argument('--reg', type=float, default=0.3, help=
                         'The regularization factor for sparse coding. You should use the same one you used in training')
